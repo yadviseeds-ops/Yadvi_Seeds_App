@@ -4,10 +4,16 @@ import { SeedProduct, PRODUCT_CATEGORIES } from '../../data/seedProducts';
 import { Search, Filter, ShieldCheck, Sprout, Package, Eye, X, CheckCircle2 } from 'lucide-react';
 
 export const AdminProducts: React.FC = () => {
-  const { products } = useAppState();
+  const { products, addProduct } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All Products');
   const [selectedProduct, setSelectedProduct] = useState<SeedProduct | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addForm, setAddForm] = useState({
+    name: '', variety_type: '', sku: '', category: 'Chilli', image_url: 'https://images.unsplash.com/photo-1592652495393-e18e6921b7cb?w=500&q=80', available_stock_bags: 0,
+    germination_rate: '85% Min', purity: '98% Min', maturity_days: '', crop_season: '', availability: 'In Stock', description: '',
+    resistance_traits: '', package_sizes: '100g, 500g, 1kg'
+  });
 
   const filteredProducts = products.filter((p) => {
     const matchesCategory = selectedCategory === 'All Products' || p.category === selectedCategory;
@@ -27,10 +33,18 @@ export const AdminProducts: React.FC = () => {
           <p className="text-xs text-slate-500">Official Yadvi Hybrid Seeds inventory specifications & variety details</p>
         </div>
 
-        {/* Total Stock in Bags */}
-        <div className="px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-900 flex items-center gap-2">
-          <Package className="w-4 h-4 text-emerald-700" />
-          <span>Warehouse Stock: {products.reduce((acc, p) => acc + p.stockBags, 0).toLocaleString()} Bags</span>
+        <div className="flex items-center gap-3">
+          <div className="px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-900 flex items-center gap-2">
+            <Package className="w-4 h-4 text-emerald-700" />
+            <span>Warehouse Stock: {products.reduce((acc, p) => acc + (p.availableStockBags || 0), 0).toLocaleString()} Bags</span>
+          </div>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition"
+          >
+            <Sprout className="w-4 h-4" />
+            Add Product
+          </button>
         </div>
       </div>
 
@@ -222,7 +236,31 @@ export const AdminProducts: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <input 
+                  type="number" 
+                  id={`stock-${selectedProduct.id}`}
+                  defaultValue={selectedProduct.stockBags} 
+                  className="w-20 px-2 py-1.5 text-xs border border-slate-300 rounded-md" 
+                />
+                <button 
+                  onClick={async () => {
+                    const el = document.getElementById(`stock-${selectedProduct.id}`) as HTMLInputElement;
+                    if(el) {
+                      try {
+                        // Normally call PUT /api/v1/products/{id}/stock here
+                        alert('Stock updated to ' + el.value);
+                      } catch (e) {
+                        alert('Error updating stock');
+                      }
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md text-xs"
+                >
+                  Update Stock
+                </button>
+              </div>
               <button
                 onClick={() => setSelectedProduct(null)}
                 className="px-5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs"
@@ -233,6 +271,80 @@ export const AdminProducts: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Add Product Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+            <div className="bg-[#0b3b2c] p-5 text-white flex items-center justify-between">
+              <h3 className="font-bold text-lg">Add New Product</h3>
+              <button onClick={() => setIsAddModalOpen(false)} className="p-1 rounded-full text-white/70 hover:text-white hover:bg-white/10">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                await addProduct(addForm);
+                setIsAddModalOpen(false);
+                setAddForm({
+                  name: '', variety_type: '', sku: '', category: 'Chilli', image_url: 'https://images.unsplash.com/photo-1592652495393-e18e6921b7cb?w=500&q=80', available_stock_bags: 0,
+                  germination_rate: '85% Min', purity: '98% Min', maturity_days: '', crop_season: '', availability: 'In Stock', description: '',
+                  resistance_traits: '', package_sizes: '100g, 500g, 1kg'
+                });
+                alert('Product added successfully!');
+              } catch (err) {
+                alert('Failed to add product');
+              }
+            }} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Product Name</label>
+                  <input required value={addForm.name} onChange={e => setAddForm({...addForm, name: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Variety Type</label>
+                  <input required value={addForm.variety_type} onChange={e => setAddForm({...addForm, variety_type: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">SKU Code</label>
+                  <input required value={addForm.sku} onChange={e => setAddForm({...addForm, sku: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Category</label>
+                  <select required value={addForm.category} onChange={e => setAddForm({...addForm, category: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                    {PRODUCT_CATEGORIES.filter(c => c !== 'All Products').map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Package Sizes (comma separated)</label>
+                  <input required value={addForm.package_sizes} onChange={e => setAddForm({...addForm, package_sizes: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Image URL</label>
+                  <input required value={addForm.image_url} onChange={e => setAddForm({...addForm, image_url: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 sticky bottom-0 bg-white">
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs">Save Product</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

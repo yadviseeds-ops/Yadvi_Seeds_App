@@ -31,6 +31,7 @@ class User(Base):
     role = relationship("Role", back_populates="users")
     shop_profile = relationship("ShopOwner", back_populates="user", uselist=False)
     field_profile = relationship("FieldExecutive", back_populates="user", uselist=False)
+    fcm_tokens = relationship("FCMDeviceToken", back_populates="user")
 
 class ShopOwner(Base):
     __tablename__ = "shop_owners"
@@ -47,8 +48,10 @@ class ShopOwner(Base):
     current_stock_bags = Column(Integer, default=0)
     primary_demand_crop = Column(String(100), nullable=True)
     status = Column(String(20), default="Active")  # Active, Inactive
+    assigned_executive_id = Column(Integer, ForeignKey("field_executives.id"), nullable=True)
 
     user = relationship("User", back_populates="shop_profile")
+    assigned_executive = relationship("FieldExecutive", back_populates="assigned_shops")
     orders = relationship("Order", back_populates="shop")
     visits = relationship("Visit", back_populates="shop")
 
@@ -68,6 +71,7 @@ class FieldExecutive(Base):
     last_location_update = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="field_profile")
+    assigned_shops = relationship("ShopOwner", back_populates="assigned_executive")
     visits = relationship("Visit", back_populates="executive")
     orders_collected = relationship("Order", back_populates="assigned_executive")
     attendances = relationship("Attendance", back_populates="executive")
@@ -201,3 +205,16 @@ class Notification(Base):
     status = Column(String(50), default="Sent")
     message_content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class FCMDeviceToken(Base):
+    __tablename__ = "fcm_device_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    device_token = Column(String(255), unique=True, nullable=False)
+    platform = Column(String(50), nullable=True) # android, ios, web
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="fcm_tokens")

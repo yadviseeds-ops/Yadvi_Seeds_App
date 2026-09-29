@@ -6,6 +6,7 @@ from app.core.security import create_access_token, get_current_user, require_rol
 from app.models.all_models import User, Role
 from app.schemas.auth_schemas import OTPRequest, OTPVerifyRequest, TokenResponse, UserBase, RoleCheckResponse
 from app.core.sms import generate_secure_otp, send_sms_otp
+from pydantic import BaseModel
 
 import time
 
@@ -238,3 +239,31 @@ def test_shop_access(current_user: User = Depends(require_role(["shop_owner", "a
         user_name=current_user.full_name,
         message="Authorized: Shop Owner route accessed."
     )
+
+class FCMTokenRequest(BaseModel):
+    token: str
+    platform: str = "android"
+
+@router.post("/fcm-token")
+def register_fcm_token(request: FCMTokenRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.all_models import FCMDeviceToken
+    
+    # Check if token exists
+    existing = db.query(FCMDeviceToken).filter(FCMDeviceToken.device_token == request.token).first()
+    
+    if existing:
+        if existing.user_id != current_user.id:
+            existing.user_id = current_user.id
+            existing.is_active = True
+            db.commit()
+    else:
+        new_token = FCMDeviceToken(
+            user_id=current_user.id,
+            device_token=request.token,
+            platform=request.platform,
+            is_active=True
+        )
+        db.add(new_token)
+        db.commit()
+    
+    return {"status": "success", "message": "FCM Token registered"}

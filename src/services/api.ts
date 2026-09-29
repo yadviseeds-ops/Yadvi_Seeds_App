@@ -111,6 +111,13 @@ class ApiService {
     return this.request('/employees');
   }
   
+  async createEmployee(payload: any): Promise<any> {
+    return this.request('/employees', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+  
   async updateMyLocation(id: number, lat: number, lng: number, battery?: number): Promise<any> {
     return this.request(`/employees/${id}/location`, {
       method: 'PUT',
@@ -137,14 +144,42 @@ class ApiService {
     });
   }
 
+  async assignOrderExecutive(id: string | number, executiveId: number): Promise<any> {
+    return this.request(`/orders/${id}/assign-executive`, {
+      method: 'PUT',
+      body: JSON.stringify({ executive_id: executiveId }),
+    });
+  }
+
   // Products
   async getProducts(): Promise<any[]> {
     return this.request('/products');
   }
 
+  async createProduct(payload: any): Promise<any> {
+    return this.request('/products', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   // Shops
   async getShops(): Promise<any[]> {
     return this.request('/shops');
+  }
+  
+  async createShop(payload: any): Promise<any> {
+    return this.request('/shops', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+  
+  async assignShop(shopId: number, executiveId: number | null): Promise<any> {
+    return this.request(`/shops/${shopId}/assign`, {
+      method: 'PUT',
+      body: JSON.stringify({ executive_id: executiveId }),
+    });
   }
 
   // Attendance

@@ -19,10 +19,22 @@ import {
 } from 'lucide-react';
 
 export const AdminEmployees: React.FC = () => {
-  const { employees } = useAppState();
+  const { employees, addEmployee } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('All');
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  
+  // Add Employee Form State
+  const [addForm, setAddForm] = useState({
+    full_name: '',
+    phone: '',
+    email: '',
+    username: '',
+    employee_code: '',
+    designation: 'Field Sales Officer',
+    assigned_territory: ''
+  });
 
   const filteredEmployees = employees.filter((emp) => {
     const matchesSearch =
@@ -41,6 +53,13 @@ export const AdminEmployees: React.FC = () => {
           <h2 className="text-xl font-black text-slate-900 tracking-tight">Employees</h2>
           <p className="text-xs text-slate-500">Manage your field force and monitor live productivity</p>
         </div>
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition"
+        >
+          <Plus className="w-4 h-4" />
+          Add Employee
+        </button>
       </div>
 
       {/* 4 Summary Stat Cards matching reference screenshot */}
@@ -272,6 +291,79 @@ export const AdminEmployees: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Add Employee Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+            <div className="bg-[#0b3b2c] p-5 text-white flex items-center justify-between">
+              <h3 className="font-bold text-lg">Add New Employee</h3>
+              <button onClick={() => setIsAddModalOpen(false)} className="p-1 rounded-full text-white/70 hover:text-white hover:bg-white/10">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                await addEmployee(addForm);
+                setIsAddModalOpen(false);
+                setAddForm({
+                  full_name: '', phone: '', email: '', username: '', employee_code: '', designation: 'Field Sales Officer', assigned_territory: ''
+                });
+                alert('Employee added successfully!');
+              } catch (err) {
+                alert('Failed to add employee');
+              }
+            }} className="p-6 space-y-4">
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Full Name</label>
+                  <input required value={addForm.full_name} onChange={e => setAddForm({...addForm, full_name: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Phone</label>
+                  <input required value={addForm.phone} onChange={e => setAddForm({...addForm, phone: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Email (Optional)</label>
+                  <input value={addForm.email} onChange={e => setAddForm({...addForm, email: e.target.value})} type="email" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Username</label>
+                  <input required value={addForm.username} onChange={e => setAddForm({...addForm, username: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Employee Code</label>
+                  <input required value={addForm.employee_code} onChange={e => setAddForm({...addForm, employee_code: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Territory</label>
+                  <input required value={addForm.assigned_territory} onChange={e => setAddForm({...addForm, assigned_territory: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">
+                  Cancel
+                </button>
+                <button type="submit" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs">
+                  Save Employee
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

@@ -21,7 +21,7 @@ export const AdminDashboard: React.FC = () => {
   const activeEmployees = employees.filter((e) => e.status === 'Active').length;
   const presentEmployees = employees.filter((e) => e.attendanceStatus === 'Present' || e.attendanceStatus === 'In Field').length;
   const liveTrackingCount = employees.filter((e) => e.attendanceStatus === 'In Field' || e.attendanceStatus === 'Present').length;
-  const totalDistributors = shops.length * 50; // Scaled representation
+  const totalShopOwners = shops.length * 50; // Scaled representation // Scaled representation
 
   // Total bags ordered across orders
   const todayOrders = orders.slice(0, 5);
@@ -79,10 +79,10 @@ export const AdminDashboard: React.FC = () => {
           <div className="text-[10px] text-slate-400 mt-1 font-medium">On-field GPS active</div>
         </div>
 
-        {/* Total Distributors */}
+        {/* Total Shop Owners */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-card hover:shadow-card-hover transition">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Distributors</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Shop Owners</span>
             <div className="p-1.5 rounded-lg bg-blue-50 text-blue-700">
               <Building2 className="w-4 h-4" />
             </div>
@@ -334,14 +334,14 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Bottom Grid: Distributor Stock Summary + Recent Orders */}
+      {/* 4. Bottom Grid: Shop Owner Stock Summary + Recent Orders */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Distributor Stock Summary (Strictly Bags, NO Price) */}
+        {/* Shop Owner Stock Summary (Strictly Bags, NO Price) */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-card p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-slate-900 text-sm">Distributor Stock Summary</h2>
+            <h2 className="font-bold text-slate-900 text-sm">Shop Owner Stock Summary</h2>
             <button
-              onClick={() => setActiveTab('distributors')}
+              onClick={() => setActiveTab('shop-owners')}
               className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 hover:underline cursor-pointer"
             >
               <span>View All</span>
@@ -353,7 +353,7 @@ export const AdminDashboard: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="pb-3 pl-1">Distributor</th>
+                  <th className="pb-3 pl-1">Shop Owner</th>
                   <th className="pb-3">Top Product</th>
                   <th className="pb-3 text-right">Opening (Bags)</th>
                   <th className="pb-3 pr-1 text-right">Stock (Bags)</th>

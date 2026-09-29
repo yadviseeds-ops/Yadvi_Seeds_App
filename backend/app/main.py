@@ -11,6 +11,7 @@ from app.api.visits import router as visits_router
 from app.api.attendance import router as attendance_router
 from app.api.shipments import router as shipments_router
 from app.api.dashboard import router as dashboard_router
+from app.api.ws import router as ws_router
 from app.seed_data import init_db
 
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +44,7 @@ app.include_router(visits_router, prefix=settings.API_V1_STR)
 app.include_router(attendance_router, prefix=settings.API_V1_STR)
 app.include_router(shipments_router, prefix=settings.API_V1_STR)
 app.include_router(dashboard_router, prefix=settings.API_V1_STR)
+app.include_router(ws_router, prefix=settings.API_V1_STR)
 
 
 @app.on_event("startup")

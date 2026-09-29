@@ -10,6 +10,15 @@ from app.models.all_models import FieldExecutive, User
 router = APIRouter(prefix="/employees", tags=["Field Executives"])
 
 
+class EmployeeCreate(BaseModel):
+    full_name: str
+    phone: str
+    email: Optional[str] = None
+    username: str
+    employee_code: str
+    designation: str = "Field Sales Officer"
+    assigned_territory: str
+
 class EmployeeOut(BaseModel):
     id: int
     user_id: int
@@ -36,6 +45,68 @@ class LocationUpdateRequest(BaseModel):
     lng: float
     battery_level: Optional[int] = None
 
+
+@router.post("", response_model=EmployeeOut)
+def create_employee(
+    payload: EmployeeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["administrator"]))
+):
+    """Create a new field executive — Admin only."""
+    # Check if username or phone exists
+    if db.query(User).filter((User.username == payload.username) | (User.phone == payload.phone)).first():
+        raise HTTPException(status_code=400, detail="Username or Phone already exists")
+        
+    if db.query(FieldExecutive).filter(FieldExecutive.employee_code == payload.employee_code).first():
+        raise HTTPException(status_code=400, detail="Employee code already exists")
+
+    from app.models.all_models import Role
+    role = db.query(Role).filter(Role.name == "field_executive").first()
+    if not role:
+        raise HTTPException(status_code=500, detail="Role 'field_executive' not found in database")
+
+    new_user = User(
+        full_name=payload.full_name,
+        phone=payload.phone,
+        email=payload.email,
+        username=payload.username,
+        role_id=role.id,
+        is_active=True
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    new_exec = FieldExecutive(
+        user_id=new_user.id,
+        employee_code=payload.employee_code,
+        designation=payload.designation,
+        assigned_territory=payload.assigned_territory
+    )
+    db.add(new_exec)
+    db.commit()
+    db.refresh(new_exec)
+    
+    # Reload with joined user to match out schema
+    exec_loaded = db.query(FieldExecutive).options(joinedload(FieldExecutive.user)).filter(FieldExecutive.id == new_exec.id).first()
+    
+    return EmployeeOut(
+        id=exec_loaded.id,
+        user_id=exec_loaded.user_id,
+        employee_code=exec_loaded.employee_code,
+        designation=exec_loaded.designation,
+        assigned_territory=exec_loaded.assigned_territory,
+        current_lat=exec_loaded.current_lat,
+        current_lng=exec_loaded.current_lng,
+        battery_level=exec_loaded.battery_level,
+        attendance_status=exec_loaded.attendance_status,
+        distance_covered_km=exec_loaded.distance_covered_km,
+        last_location_update=exec_loaded.last_location_update,
+        full_name=exec_loaded.user.full_name,
+        phone=exec_loaded.user.phone,
+        email=exec_loaded.user.email,
+        is_active=exec_loaded.user.is_active,
+    )
 
 @router.get("", response_model=List[EmployeeOut])
 def list_employees(
@@ -117,8 +188,26 @@ def update_location(
 
     exec_.current_lat = payload.lat
     exec_.current_lng = payload.lng
-    exec_.last_location_update = datetime.utcnow()
+    now_utc = datetime.utcnow()
+    exec_.last_location_update = now_utc
     if payload.battery_level is not None:
         exec_.battery_level = payload.battery_level
     db.commit()
+    
+    # Broadcast WS update async
+    from app.core.websocket import manager
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(manager.broadcast_location_update(
+            employee_id=exec_.id,
+            lat=exec_.current_lat,
+            lng=exec_.current_lng,
+            battery=exec_.battery_level,
+            last_update=now_utc.isoformat()
+        ))
+    except Exception as e:
+        import logging
+        logging.error(f"Error broadcasting location: {e}")
+
     return {"success": True, "lat": exec_.current_lat, "lng": exec_.current_lng}

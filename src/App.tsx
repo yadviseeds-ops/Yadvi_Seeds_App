@@ -9,7 +9,7 @@ import { AdminEmployees } from './components/admin/AdminEmployees';
 import { AdminLiveTracking } from './components/admin/AdminLiveTracking';
 import { AdminAttendance } from './components/admin/AdminAttendance';
 import { AdminFieldVisits } from './components/admin/AdminFieldVisits';
-import { AdminDistributors } from './components/admin/AdminDistributors';
+import { AdminShopOwners } from './components/admin/AdminShopOwners';
 import { AdminProducts } from './components/admin/AdminProducts';
 import { AdminOrders } from './components/admin/AdminOrders';
 import { AdminShipments } from './components/admin/AdminShipments';
@@ -34,9 +34,8 @@ const MainApp: React.FC = () => {
         return <AdminAttendance />;
       case 'field-visits':
         return <AdminFieldVisits />;
-      case 'distributors':
       case 'shop-owners':
-        return <AdminDistributors />;
+        return <AdminShopOwners />;
       case 'products':
       case 'inventory':
         return <AdminProducts />;
@@ -44,7 +43,6 @@ const MainApp: React.FC = () => {
         return <AdminOrders />;
       case 'shipments':
         return <AdminShipments />;
-      case 'sales':
       case 'reports':
         return <AdminReports />;
       case 'settings':

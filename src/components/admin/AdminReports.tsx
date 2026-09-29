@@ -4,7 +4,7 @@ import { FileBarChart, Download, Calendar, TrendingUp, Package, Building2, Users
 
 export const AdminReports: React.FC = () => {
   const { products, orders, shops, employees } = useAppState();
-  const [activeReportTab, setActiveReportTab] = useState<'sales' | 'distributor' | 'employee' | 'stock'>('sales');
+  const [activeReportTab, setActiveReportTab] = useState<'orders' | 'shop-owner' | 'employee' | 'stock'>('orders');
 
   const totalBags = 14850;
   const totalOrders = 348;
@@ -57,9 +57,9 @@ export const AdminReports: React.FC = () => {
       {/* Report Category Subtabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 text-xs">
         <button
-          onClick={() => setActiveReportTab('sales')}
+          onClick={() => setActiveReportTab('orders')}
           className={`px-3 py-1.5 rounded-xl font-bold transition ${
-            activeReportTab === 'sales'
+            activeReportTab === 'orders'
               ? 'bg-emerald-800 text-white'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
@@ -67,14 +67,14 @@ export const AdminReports: React.FC = () => {
           Seed Volume Report
         </button>
         <button
-          onClick={() => setActiveReportTab('distributor')}
+          onClick={() => setActiveReportTab('shop-owner')}
           className={`px-3 py-1.5 rounded-xl font-bold transition ${
-            activeReportTab === 'distributor'
+            activeReportTab === 'shop-owner'
               ? 'bg-emerald-800 text-white'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
-          Distributor Inward Report
+          Shop Owner Inward Report
         </button>
         <button
           onClick={() => setActiveReportTab('employee')}

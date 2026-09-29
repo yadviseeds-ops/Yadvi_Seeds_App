@@ -183,13 +183,10 @@ def create_order(
     count = db.query(Order).count()
     order_number = f"ORD-{1021 + count + 1}"
 
-    # Find first available field executive to assign
-    exec_ = db.query(FieldExecutive).first()
-
     new_order = Order(
         order_number=order_number,
         shop_id=shop.id,
-        assigned_executive_id=exec_.id if exec_ else None,
+        assigned_executive_id=None,
         total_quantity_bags=total_bags,
         total_items_count=len(order_items),
         status="New",
@@ -205,6 +202,13 @@ def create_order(
 
     db.commit()
     db.refresh(new_order)
+
+    # Notify Admin
+    from app.core.notifications import NotificationService
+    admin_user = db.query(User).filter(User.role.has(name="administrator")).first()
+    if admin_user:
+        notif_service = NotificationService(db)
+        notif_service.notify_admin_new_order(new_order, admin_user)
 
     # Reload with joins
     fresh = (
@@ -235,7 +239,7 @@ def update_order_status(
 
     order.status = payload.status
 
-    if payload.status == "Dispatched" and payload.lr_number:
+    if payload.lr_number:
         existing_shipment = db.query(Shipment).filter(Shipment.order_id == order.id).first()
         if not existing_shipment:
             shipment = Shipment(
@@ -245,15 +249,65 @@ def update_order_status(
                 vehicle_number=payload.vehicle_number or "AP 16 TZ 5519",
                 driver_name=payload.driver_name or "R. Koteswara Rao",
                 driver_phone=payload.driver_phone or "+91 94402 88123",
-                status="Dispatched",
+                status=payload.status if payload.status in ["Dispatched", "In Transit", "Out for Delivery", "Delivered"] else "Dispatched",
                 current_location="Gannavaram Central Hub",
                 estimated_delivery="Within 48 Hours",
             )
             db.add(shipment)
         else:
             existing_shipment.lr_number = payload.lr_number
-            existing_shipment.transporter_name = payload.transporter_name or existing_shipment.transporter_name
-            existing_shipment.status = "Dispatched"
+            if payload.transporter_name:
+                existing_shipment.transporter_name = payload.transporter_name
+            if payload.vehicle_number:
+                existing_shipment.vehicle_number = payload.vehicle_number
+            if payload.driver_name:
+                existing_shipment.driver_name = payload.driver_name
+            if payload.driver_phone:
+                existing_shipment.driver_phone = payload.driver_phone
+            if payload.status in ["Dispatched", "In Transit", "Out for Delivery", "Delivered"]:
+                existing_shipment.status = payload.status
 
     db.commit()
+    
+    # Notify shop owner
+    from app.core.notifications import NotificationService
+    if order.shop and order.shop.user:
+        notif_service = NotificationService(db)
+        notif_service.notify_shop_order_status(order, order.shop.user)
+        
     return {"success": True, "order_id": order_id, "new_status": payload.status}
+
+class ExecutiveAssignRequest(BaseModel):
+    executive_id: int
+
+@router.put("/{order_id}/assign-executive")
+def assign_executive(
+    order_id: int,
+    payload: ExecutiveAssignRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["administrator"]))
+):
+    """Assign an order to a Field Executive — Admin only."""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    exec_ = db.query(FieldExecutive).filter(FieldExecutive.id == payload.executive_id).first()
+    if not exec_:
+        raise HTTPException(status_code=404, detail="Field Executive not found")
+        
+    if not exec_.user.is_active:
+        raise HTTPException(status_code=400, detail="Cannot assign to an inactive Field Executive")
+
+    order.assigned_executive_id = exec_.id
+    if order.status == "New":
+        order.status = "Confirmed" # Typical logical progression upon assignment
+
+    db.commit()
+    
+    # Notify field executive
+    from app.core.notifications import NotificationService
+    notif_service = NotificationService(db)
+    notif_service.notify_fe_new_order_assigned(order, exec_.user)
+    
+    return {"success": True, "order_id": order_id, "assigned_executive_name": exec_.user.full_name, "status": order.status}

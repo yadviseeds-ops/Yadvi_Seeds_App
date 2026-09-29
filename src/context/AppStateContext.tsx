@@ -63,6 +63,7 @@ interface AppStateContextType {
   clearCart: () => void;
   placeOrder: (notes?: string) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: OrderStatus, lrNumber?: string, transporter?: string) => Promise<void>;
+  assignOrderExecutive: (orderId: string, execId: number) => Promise<void>;
   approveLeave: (leaveId: string) => void;
   rejectLeave: (leaveId: string) => void;
   checkInVisit: (visitId: string, notes?: string) => Promise<void>;
@@ -74,6 +75,10 @@ interface AppStateContextType {
   setActiveTab: (tab: string) => void;
   selectedOrderForTrack: Order | null;
   setSelectedOrderForTrack: (order: Order | null) => void;
+  addEmployee: (payload: any) => Promise<void>;
+  addShop: (payload: any) => Promise<void>;
+  assignShopToExecutive: (shopId: string, execId: string) => Promise<void>;
+  addProduct: (payload: any) => Promise<void>;
 }
 
 const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
@@ -281,6 +286,48 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             })));
           }
         }).catch(console.error);
+        
+        // Connect to WebSocket for live tracking
+        const token = localStorage.getItem('yadvi_auth_token');
+        if (token && token !== 'null' && token !== 'undefined') {
+          const wsUrl = `ws://localhost:8000/api/v1/ws/live-tracking?token=${token}`;
+          const ws = new WebSocket(wsUrl);
+          
+          ws.onopen = () => {
+            console.log("Admin connected to live tracking WebSocket.");
+          };
+          
+          ws.onmessage = (event) => {
+            try {
+              const payload = JSON.parse(event.data);
+              if (payload.type === 'LOCATION_UPDATE' && payload.data) {
+                setEmployees(prev => prev.map(emp => {
+                  if (emp.id === String(payload.data.employee_id)) {
+                    return {
+                      ...emp,
+                      lat: payload.data.lat,
+                      lng: payload.data.lng,
+                      batteryLevel: payload.data.battery,
+                      lastLocationUpdate: new Date(payload.data.last_update).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    };
+                  }
+                  return emp;
+                }));
+              }
+            } catch (err) {
+              console.error("Error parsing WebSocket message:", err);
+            }
+          };
+          
+          ws.onclose = () => {
+            console.log("Live tracking WebSocket closed.");
+          };
+          
+          // Cleanup on unmount or role change
+          return () => {
+            ws.close();
+          };
+        }
       }
 
       if (currentRole === 'admin' || currentRole === 'field_executive') {
@@ -542,6 +589,30 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  const assignOrderExecutive = async (orderId: string, execId: number) => {
+    try {
+      const numericId = orderId.replace('ord-', '');
+      const response = await api.assignOrderExecutive(numericId, execId);
+
+      setOrders((prev) =>
+        prev.map((ord) => {
+          if (ord.id === orderId || ord.id === numericId) {
+            return {
+              ...ord,
+              assignedExecutiveId: String(execId),
+              assignedExecutiveName: response.assigned_executive_name,
+              status: response.status
+            };
+          }
+          return ord;
+        })
+      );
+    } catch (err) {
+      console.error('Failed to assign order executive:', err);
+      throw err;
+    }
+  };
+
   const approveLeave = (leaveId: string) => {
     setLeaves((prev) =>
       prev.map((item) => (item.id === leaveId ? { ...item, status: 'Approved' } : item))
@@ -605,6 +676,93 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setWhatsappAlert(alert);
   };
 
+  const addEmployee = async (payload: any) => {
+    try {
+      const newEmp = await api.createEmployee(payload);
+      const mappedEmp: Employee = {
+        id: `emp-${newEmp.id}`,
+        name: newEmp.full_name,
+        empId: newEmp.employee_code,
+        role: newEmp.designation,
+        location: newEmp.assigned_territory,
+        status: newEmp.is_active ? 'Active' : 'Inactive',
+        attendanceStatus: 'Present',
+        distanceToday: 0,
+        phone: newEmp.phone,
+        email: newEmp.email,
+        batteryLevel: 100,
+        lastUpdate: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setEmployees(prev => [mappedEmp, ...prev]);
+    } catch (err) {
+      console.error('Failed to create employee:', err);
+      throw err;
+    }
+  };
+
+  const addShop = async (payload: any) => {
+    try {
+      const newShopApi = await api.createShop(payload);
+      const mappedShop: Shop = {
+        id: `shop-${newShopApi.id}`,
+        shopName: newShopApi.shop_name,
+        dealerCode: newShopApi.dealer_code,
+        ownerName: newShopApi.owner_name,
+        phone: newShopApi.phone,
+        location: newShopApi.market_location,
+        address: newShopApi.address,
+        status: newShopApi.status,
+        openingStockBags: newShopApi.opening_stock_bags,
+        currentStockBags: newShopApi.current_stock_bags,
+        primaryDemandCrop: newShopApi.primary_demand_crop || 'Mixed',
+        lat: newShopApi.lat || 16.5062,
+        lng: newShopApi.lng || 80.6480,
+      };
+      setShops(prev => [mappedShop, ...prev]);
+    } catch (err) {
+      console.error('Failed to create shop:', err);
+      throw err;
+    }
+  };
+
+  const assignShopToExecutive = async (shopId: string, execId: string) => {
+    try {
+      const numericShopId = parseInt(shopId.replace('shop-', ''), 10) || parseInt(shopId, 10);
+      const numericExecId = parseInt(execId.replace('emp-', ''), 10) || parseInt(execId, 10);
+      await api.assignShop(numericShopId, numericExecId);
+    } catch (err) {
+      console.error('Failed to assign shop:', err);
+      throw err;
+    }
+  };
+
+  const addProduct = async (payload: any) => {
+    try {
+      const newProd = await api.createProduct(payload);
+      const mappedProd: SeedProduct = {
+        id: `prod-${newProd.id}`,
+        name: newProd.name,
+        varietyType: newProd.variety_type,
+        sku: newProd.sku,
+        category: newProd.category,
+        imageUrl: newProd.image_url,
+        availableStockBags: newProd.available_stock_bags,
+        germinationRate: newProd.germination_rate,
+        purity: newProd.purity,
+        maturityDays: newProd.maturity_days || 'N/A',
+        cropSeason: newProd.crop_season || 'All Season',
+        availability: newProd.availability,
+        description: newProd.description || '',
+        resistanceTraits: newProd.resistance_traits || '',
+        packageSizes: newProd.package_sizes.split(',').map((s: string) => s.trim())
+      };
+      setProducts(prev => [mappedProd, ...prev]);
+    } catch (err) {
+      console.error('Failed to create product:', err);
+      throw err;
+    }
+  };
+
   return (
     <AppStateContext.Provider
       value={{
@@ -636,6 +794,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         clearCart,
         placeOrder,
         updateOrderStatus,
+        assignOrderExecutive,
         approveLeave,
         rejectLeave,
         checkInVisit,
@@ -647,6 +806,10 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setActiveTab,
         selectedOrderForTrack,
         setSelectedOrderForTrack,
+        addEmployee,
+        addShop,
+        assignShopToExecutive,
+        addProduct,
       }}
     >
       {children}

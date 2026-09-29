@@ -9,6 +9,22 @@ from app.models.all_models import Product, User
 router = APIRouter(prefix="/products", tags=["Products & Inventory"])
 
 
+class ProductCreate(BaseModel):
+    name: str
+    variety_type: str
+    sku: str
+    category: str
+    image_url: str
+    available_stock_bags: int = 0
+    germination_rate: str = "85% Min"
+    purity: str = "98% Min"
+    maturity_days: Optional[str] = None
+    crop_season: Optional[str] = None
+    availability: str = "In Stock"
+    description: Optional[str] = None
+    resistance_traits: Optional[str] = None
+    package_sizes: str = "100g, 500g, 1kg"
+
 class ProductOut(BaseModel):
     id: int
     name: str
@@ -33,6 +49,38 @@ class ProductOut(BaseModel):
 class StockUpdateRequest(BaseModel):
     available_stock_bags: int
     availability: Optional[str] = None
+
+
+@router.post("", response_model=ProductOut)
+def create_product(
+    payload: ProductCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["administrator"]))
+):
+    """Create a new product — Admin only."""
+    if db.query(Product).filter(Product.sku == payload.sku).first():
+        raise HTTPException(status_code=400, detail="SKU already exists")
+    
+    new_product = Product(
+        name=payload.name,
+        variety_type=payload.variety_type,
+        sku=payload.sku,
+        category=payload.category,
+        image_url=payload.image_url,
+        available_stock_bags=payload.available_stock_bags,
+        germination_rate=payload.germination_rate,
+        purity=payload.purity,
+        maturity_days=payload.maturity_days,
+        crop_season=payload.crop_season,
+        availability=payload.availability,
+        description=payload.description,
+        resistance_traits=payload.resistance_traits,
+        package_sizes=payload.package_sizes
+    )
+    db.add(new_product)
+    db.commit()
+    db.refresh(new_product)
+    return new_product
 
 
 @router.get("", response_model=List[ProductOut])
