@@ -24,13 +24,11 @@ class ShopService {
     throw Exception('Failed to load orders');
   }
 
-  Future<Order> placeOrder(List<Map<String, dynamic>> items, String notes) async {
-    final response = await _apiClient.post('/api/v1/orders', {
-      'items': items,
-      'delivery_notes': notes,
-      'source': 'Shop Owner App'
-    });
-    
+  Future<Order> placeOrder(
+      List<Map<String, dynamic>> items, String notes) async {
+    final response = await _apiClient.post('/api/v1/orders',
+        {'items': items, 'delivery_notes': notes, 'source': 'Shop Owner App'});
+
     if (response.statusCode == 200 || response.statusCode == 201) {
       return Order.fromJson(jsonDecode(response.body));
     }

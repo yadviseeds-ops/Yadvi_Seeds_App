@@ -12,7 +12,9 @@ from app.api.attendance import router as attendance_router
 from app.api.shipments import router as shipments_router
 from app.api.dashboard import router as dashboard_router
 from app.api.ws import router as ws_router
+from app.api.tracking import router as tracking_router
 from app.seed_data import init_db
+from app.core.firebase import init_firebase
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("yadvi_main")
@@ -45,12 +47,20 @@ app.include_router(attendance_router, prefix=settings.API_V1_STR)
 app.include_router(shipments_router, prefix=settings.API_V1_STR)
 app.include_router(dashboard_router, prefix=settings.API_V1_STR)
 app.include_router(ws_router, prefix=settings.API_V1_STR)
+app.include_router(tracking_router, prefix=settings.API_V1_STR)
 
 
 @app.on_event("startup")
 def on_startup():
     logger.info("Initializing Yadvi Hybrid Seeds Database & Seeding initial accounts...")
     init_db()
+    logger.info("Initializing Firebase Admin SDK...")
+    try:
+        init_firebase()
+    except Exception as e:
+        logger.error(f"Critical startup failure: {e}")
+        # We allow the app to continue so we don't crash entirely, but auth will fail safely later.
+        
     logger.info("Yadvi Hybrid Seeds Backend API is ready to accept connections!")
 
 

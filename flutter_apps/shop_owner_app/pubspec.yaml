@@ -9,10 +9,17 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  geolocator: ^14.0.2
   http: ^1.2.1
   shared_preferences: ^2.2.3
   flutter_secure_storage: ^9.2.2
   provider: ^6.1.5+1
+  firebase_auth: ^6.7.0
+  firebase_core: ^4.15.0
+  firebase_messaging: ^16.7.0
+  web_socket_channel: ^2.4.0
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:

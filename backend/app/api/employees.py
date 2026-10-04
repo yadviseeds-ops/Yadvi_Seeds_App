@@ -56,7 +56,7 @@ def create_employee(
     # Check if username or phone exists
     if db.query(User).filter((User.username == payload.username) | (User.phone == payload.phone)).first():
         raise HTTPException(status_code=400, detail="Username or Phone already exists")
-        
+
     if db.query(FieldExecutive).filter(FieldExecutive.employee_code == payload.employee_code).first():
         raise HTTPException(status_code=400, detail="Employee code already exists")
 
@@ -86,10 +86,10 @@ def create_employee(
     db.add(new_exec)
     db.commit()
     db.refresh(new_exec)
-    
+
     # Reload with joined user to match out schema
     exec_loaded = db.query(FieldExecutive).options(joinedload(FieldExecutive.user)).filter(FieldExecutive.id == new_exec.id).first()
-    
+
     return EmployeeOut(
         id=exec_loaded.id,
         user_id=exec_loaded.user_id,
@@ -170,7 +170,7 @@ def get_my_profile(
 
 
 @router.put("/{employee_id}/location")
-def update_location(
+async def update_location(
     employee_id: int,
     payload: LocationUpdateRequest,
     db: Session = Depends(get_db),
@@ -193,21 +193,26 @@ def update_location(
     if payload.battery_level is not None:
         exec_.battery_level = payload.battery_level
     db.commit()
-    
-    # Broadcast WS update async
-    from app.core.websocket import manager
-    import asyncio
-    try:
-        loop = asyncio.get_running_loop()
-        loop.create_task(manager.broadcast_location_update(
-            employee_id=exec_.id,
-            lat=exec_.current_lat,
-            lng=exec_.current_lng,
-            battery=exec_.battery_level,
-            last_update=now_utc.isoformat()
-        ))
-    except Exception as e:
-        import logging
-        logging.error(f"Error broadcasting location: {e}")
+
+    from app.models.all_models import TrackingSession
+    active_session = db.query(TrackingSession).filter(
+        TrackingSession.executive_id == exec_.id,
+        TrackingSession.status == "Active"
+    ).first()
+
+    if not active_session:
+        # Broadcast WS update async only if not actively tracking to avoid duplicate broadcasts
+        from app.core.websocket import manager
+        try:
+            await manager.broadcast_location_update(
+                employee_id=exec_.id,
+                lat=exec_.current_lat,
+                lng=exec_.current_lng,
+                battery=exec_.battery_level or 100,
+                last_update=now_utc.isoformat()
+            )
+        except Exception as e:
+            import logging
+            logging.error(f"Error broadcasting location: {e}")
 
     return {"success": True, "lat": exec_.current_lat, "lng": exec_.current_lng}

@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "943376646148",
+    "project_id": "yadvi-seed-app-5f306",
+    "storage_bucket": "yadvi-seed-app-5f306.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:943376646148:android:bde2cfd76d3cc39957b551",
+        "android_client_info": {
+          "package_name": "com.example.shop_owner_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCXZICOBwTyZhwNhp03QkAk4A1JFz8aMFE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:943376646148:android:8ab282dfec5f15f757b551",
+        "android_client_info": {
+          "package_name": "com.yadvi.field_executive_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCXZICOBwTyZhwNhp03QkAk4A1JFz8aMFE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

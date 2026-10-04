@@ -57,12 +57,26 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                           return Card(
                             margin: const EdgeInsets.only(bottom: 16),
                             child: ListTile(
-                              leading: Image.network('${AppConfig.apiBaseUrl}${p.imageUrl}', width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.image, size: 50)),
-                              title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                              subtitle: Text('SKU: ${p.sku}\nStock: ${p.availableStockBags} Bags'),
-                              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                              leading: Image.network(
+                                  '${AppConfig.apiBaseUrl}${p.imageUrl}',
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const Icon(Icons.image, size: 50)),
+                              title: Text(p.name,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold)),
+                              subtitle: Text(
+                                  'SKU: ${p.sku}\nStock: ${p.availableStockBags} Bags'),
+                              trailing:
+                                  const Icon(Icons.arrow_forward_ios, size: 16),
                               onTap: () {
-                                Navigator.push(context, MaterialPageRoute(builder: (_) => ProductDetailsScreen(product: p)));
+                                Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            ProductDetailsScreen(product: p)));
                               },
                             ),
                           );

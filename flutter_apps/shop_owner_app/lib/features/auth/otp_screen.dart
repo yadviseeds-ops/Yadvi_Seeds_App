@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_service.dart';
 import '../dashboard/dashboard_screen.dart';
+import '../field_executive/dashboard/dashboard_screen.dart' as fe;
 
 class OtpScreen extends StatefulWidget {
   final String username;
   final String mobile;
+  final AuthService authService;
+  final String selectedRole;
 
   const OtpScreen({
     super.key,
     required this.username,
     required this.mobile,
+    required this.authService,
+    required this.selectedRole,
   });
 
   @override
@@ -19,7 +24,7 @@ class OtpScreen extends StatefulWidget {
 class _OtpScreenState extends State<OtpScreen> {
   final _formKey = GlobalKey<FormState>();
   final _otpController = TextEditingController();
-  final AuthService _authService = AuthService();
+  late final AuthService _authService = widget.authService;
   bool _isLoading = false;
   bool _isResending = false;
 
@@ -30,20 +35,34 @@ class _OtpScreenState extends State<OtpScreen> {
       });
 
       try {
-        await _authService.verifyOtp(
+        final success = await _authService.verifyOtp(
           widget.username,
           widget.mobile,
           _otpController.text.trim(),
+          widget.selectedRole,
         );
 
-        if (mounted) {
+        if (success && mounted) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            MaterialPageRoute(builder: (context) {
+              if (widget.selectedRole == 'shop_owner') {
+                return const DashboardScreen();
+              }
+              if (widget.selectedRole == 'field_executive') {
+                return const fe.DashboardScreen();
+              }
+              // Placeholder for other roles until integrated
+              return Scaffold(
+                appBar: AppBar(title: const Text('Module Not Integrated')),
+                body: const Center(child: Text('This module will be integrated shortly.')),
+              );
+            }),
             (route) => false,
           );
         }
       } catch (e) {
+        debugPrint('OtpScreen caught error: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -66,7 +85,7 @@ class _OtpScreenState extends State<OtpScreen> {
     setState(() {
       _isResending = true;
     });
-    
+
     try {
       await _authService.requestOtp(widget.username, widget.mobile);
       if (mounted) {

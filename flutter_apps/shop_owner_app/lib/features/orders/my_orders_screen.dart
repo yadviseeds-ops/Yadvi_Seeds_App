@@ -55,11 +55,19 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                         return Card(
                           margin: const EdgeInsets.only(bottom: 12),
                           child: ListTile(
-                            title: Text(o.orderNumber, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text('Status: ${o.status}\nBags: ${o.totalQuantityBags}\nAssigned: ${o.assignedExecutiveName ?? 'Not Assigned'}'),
-                            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                            title: Text(o.orderNumber,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold)),
+                            subtitle: Text(
+                                'Status: ${o.status}\nBags: ${o.totalQuantityBags}\nAssigned: ${o.assignedExecutiveName ?? 'Not Assigned'}'),
+                            trailing:
+                                const Icon(Icons.arrow_forward_ios, size: 16),
                             onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailsScreen(order: o)));
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          OrderDetailsScreen(order: o)));
                             },
                           ),
                         );

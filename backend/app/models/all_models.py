@@ -218,3 +218,30 @@ class FCMDeviceToken(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="fcm_tokens")
+
+class TrackingSession(Base):
+    __tablename__ = "tracking_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=False)
+    executive_id = Column(Integer, ForeignKey("field_executives.id"), nullable=False)
+    status = Column(String(50), default="Active")  # Active, Completed, Cancelled
+    start_time = Column(DateTime, default=datetime.utcnow)
+    end_time = Column(DateTime, nullable=True)
+
+    shipment = relationship("Shipment")
+    executive = relationship("FieldExecutive")
+    location_points = relationship("LocationPoint", back_populates="session", cascade="all, delete-orphan")
+
+class LocationPoint(Base):
+    __tablename__ = "location_points"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("tracking_sessions.id"), nullable=False)
+    lat = Column(Float, nullable=False)
+    lng = Column(Float, nullable=False)
+    accuracy = Column(Float, nullable=True)
+    speed = Column(Float, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship("TrackingSession", back_populates="location_points")

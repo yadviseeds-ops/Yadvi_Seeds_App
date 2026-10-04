@@ -46,7 +46,11 @@ class Product {
       cropSeason: json['crop_season'] ?? '',
       availability: json['availability'] ?? '',
       description: json['description'] ?? '',
-      packageSizes: (json['package_sizes'] as String?)?.split(',').map((e) => e.trim()).toList() ?? [],
+      packageSizes: (json['package_sizes'] as String?)
+              ?.split(',')
+              .map((e) => e.trim())
+              .toList() ??
+          [],
     );
   }
 }

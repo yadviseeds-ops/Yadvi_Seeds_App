@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_service.dart';
-import '../auth/login_screen.dart';
+import '../auth/role_selection_screen.dart';
 import '../catalogue/catalogue_screen.dart';
 import '../orders/my_orders_screen.dart';
 import '../cart/cart_screen.dart';
@@ -34,13 +34,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.shopping_bag), label: 'Catalogue'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.shopping_bag), label: 'Catalogue'),
           BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Orders'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())),
+        onPressed: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const CartScreen())),
         backgroundColor: Colors.green[800],
         child: const Icon(Icons.shopping_cart, color: Colors.white),
       ),
@@ -59,9 +61,11 @@ class HomeTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Welcome to Yadvi', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const Text('Welcome to Yadvi',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text('View the latest catalogue and place your orders.', style: TextStyle(color: Colors.grey)),
+            const Text('View the latest catalogue and place your orders.',
+                style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 24),
             Expanded(
               child: GridView.count(
@@ -69,8 +73,10 @@ class HomeTab extends StatelessWidget {
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
                 children: [
-                  _buildCard(context, 'Catalogue', Icons.local_florist, Colors.green),
-                  _buildCard(context, 'My Orders', Icons.shopping_basket, Colors.blue),
+                  _buildCard(
+                      context, 'Catalogue', Icons.local_florist, Colors.green),
+                  _buildCard(
+                      context, 'My Orders', Icons.shopping_basket, Colors.blue),
                 ],
               ),
             ),
@@ -80,7 +86,8 @@ class HomeTab extends StatelessWidget {
     );
   }
 
-  Widget _buildCard(BuildContext context, String title, IconData icon, MaterialColor color) {
+  Widget _buildCard(
+      BuildContext context, String title, IconData icon, MaterialColor color) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -113,7 +120,7 @@ class ProfileTab extends StatelessWidget {
           if (context.mounted) {
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (_) => const LoginScreen()),
+              MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
               (route) => false,
             );
           }

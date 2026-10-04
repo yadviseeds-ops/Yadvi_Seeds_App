@@ -69,7 +69,10 @@ class Order {
       lrNumber: json['lr_number'],
       transporterName: json['transporter_name'],
       createdAt: json['created_at'] ?? '',
-      items: (json['items'] as List?)?.map((i) => OrderItem.fromJson(i)).toList() ?? [],
+      items: (json['items'] as List?)
+              ?.map((i) => OrderItem.fromJson(i))
+              .toList() ??
+          [],
     );
   }
 }

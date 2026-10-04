@@ -3,7 +3,9 @@ import '../../core/auth/auth_service.dart';
 import 'otp_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String selectedRole;
+  
+  const LoginScreen({super.key, required this.selectedRole});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -23,11 +25,12 @@ class _LoginScreenState extends State<LoginScreen> {
       });
 
       try {
+        debugPrint('AuthService instance / requestOtp started');
         await _authService.requestOtp(
           _usernameController.text.trim(),
           _mobileController.text.trim(),
         );
-        
+
         if (mounted) {
           Navigator.push(
             context,
@@ -35,15 +38,18 @@ class _LoginScreenState extends State<LoginScreen> {
               builder: (context) => OtpScreen(
                 username: _usernameController.text.trim(),
                 mobile: _mobileController.text.trim(),
+                authService: _authService,
+                selectedRole: widget.selectedRole,
               ),
             ),
           );
         }
       } catch (e) {
         if (mounted) {
+          debugPrint('LOGIN ERROR: $e');
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Invalid username or registered mobile number.'),
+            SnackBar(
+              content: Text(e.toString()),
               backgroundColor: Colors.red,
             ),
           );
@@ -97,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Shop Owner Portal',
+                    'Login Portal',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 16,

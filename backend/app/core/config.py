@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # SQLite fallback database for instant local development if MySQL connection is unconfigured
     SQLITE_DB_PATH: str = os.getenv("SQLITE_DB_PATH", "yadvi_seeds.db")
     
+    # Firebase
+    FIREBASE_CREDENTIALS_PATH: str | None = os.getenv("FIREBASE_CREDENTIALS_PATH", "./firebase/firebase-service-account.json")
+    
     # CORS
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",

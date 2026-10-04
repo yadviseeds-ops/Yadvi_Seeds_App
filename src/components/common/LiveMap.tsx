@@ -34,13 +34,14 @@ export const LiveMap: React.FC<LiveMapProps> = ({
         center,
         zoom,
         zoomControl: false,
-        attributionControl: false,
+        attributionControl: true,
       });
 
       // Add clean, modern tile layer
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        subdomains: 'abcd',
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }).addTo(map);
 
       // Add zoom control top right

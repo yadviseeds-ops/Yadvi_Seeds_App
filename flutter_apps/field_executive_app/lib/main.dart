@@ -1,17 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+
+import 'firebase_options.dart';
 import 'core/auth/auth_service.dart';
 import 'features/auth/login_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'services/fcm_service.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  } catch (e) {
-    debugPrint("Failed to set bg handler: $e");
-  }
+
+  // Initialize Firebase FIRST
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Register Firebase Messaging AFTER Firebase initialization
+  FirebaseMessaging.onBackgroundMessage(
+    firebaseMessagingBackgroundHandler,
+  );
+
   runApp(const FieldExecutiveApp());
 }
 
@@ -24,18 +33,23 @@ class FieldExecutiveApp extends StatefulWidget {
 
 class _FieldExecutiveAppState extends State<FieldExecutiveApp> {
   final AuthService _authService = AuthService();
+
   bool _isLoading = true;
   bool _isAuthenticated = false;
 
   @override
   void initState() {
     super.initState();
+
     _checkAuth();
     FcmService().initialize();
   }
 
   Future<void> _checkAuth() async {
     final authenticated = await _authService.isAuthenticated();
+
+    if (!mounted) return;
+
     setState(() {
       _isAuthenticated = authenticated;
       _isLoading = false;
@@ -47,13 +61,23 @@ class _FieldExecutiveAppState extends State<FieldExecutiveApp> {
     return MaterialApp(
       title: 'Yadvi Field Executive',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.teal,
+        ),
         useMaterial3: true,
         fontFamily: 'Roboto',
       ),
       home: _isLoading
-          ? const Scaffold(body: Center(child: CircularProgressIndicator(color: Colors.teal)))
-          : (_isAuthenticated ? const DashboardScreen() : const LoginScreen()),
+          ? const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Colors.teal,
+          ),
+        ),
+      )
+          : (_isAuthenticated
+          ? const DashboardScreen()
+          : const LoginScreen()),
       debugShowCheckedModeBanner: false,
     );
   }
