@@ -5,15 +5,22 @@ export interface FieldVisit {
   shopId: string;
   shopName: string;
   shopAddress: string;
+  shopLocation?: string;
+  shopOwnerName?: string;
+  shopTerritory?: string;
+  shopCity?: string;
+  shopPhotoUrlProfile?: string;
+  shopOwnerPhotoUrl?: string;
   shopContact: string;
   distanceKm: number;
   scheduledTime: string;
-  checkInTime?: string;
-  checkOutTime?: string;
-  status: 'Completed' | 'In Progress' | 'Pending' | 'Missed';
+  visitedAt?: string;
+  status: 'Visited' | 'Pending' | 'Missed';
   purpose: 'Stock Audit & Order Booking' | 'Payment & Outstanding Followup' | 'New Seed Variety Demo' | 'Routine Relationship Visit';
   notes?: string;
   photoUrl?: string;
+  photoLat?: number;
+  photoLng?: number;
   orderCollectedNumber?: string;
   bagsOrdered?: number;
   farmerFeedback?: string;
@@ -30,9 +37,8 @@ export const MOCK_VISITS: FieldVisit[] = [
     shopContact: '+91 98765 43211',
     distanceKm: 1.2,
     scheduledTime: '09:30 AM',
-    checkInTime: '09:40 AM',
-    checkOutTime: '10:25 AM',
-    status: 'Completed',
+    visitedAt: '09:40 AM',
+    status: 'Visited',
     purpose: 'Stock Audit & Order Booking',
     notes: 'Shop owner expressed huge demand for YHS-678 Maize ahead of monsoon showers. Stock audited: 420 bags intact.',
     photoUrl: '/seeds/seed_04.jpeg',
@@ -50,9 +56,8 @@ export const MOCK_VISITS: FieldVisit[] = [
     shopContact: '+91 98480 23456',
     distanceKm: 2.8,
     scheduledTime: '10:00 AM',
-    checkInTime: '10:15 AM',
-    checkOutTime: '11:05 AM',
-    status: 'Completed',
+    visitedAt: '10:15 AM',
+    status: 'Visited',
     purpose: 'New Seed Variety Demo',
     notes: 'Demonstrated Krishna-5 Chilli sample packets. High interest in disease tolerance. Placed fresh bulk order.',
     photoUrl: '/seeds/seed_12.jpeg',
@@ -70,9 +75,8 @@ export const MOCK_VISITS: FieldVisit[] = [
     shopContact: '+91 98765 43213',
     distanceKm: 0.9,
     scheduledTime: '11:30 AM',
-    checkInTime: '11:45 AM',
-    checkOutTime: '12:30 PM',
-    status: 'Completed',
+    visitedAt: '11:45 AM',
+    status: 'Visited',
     purpose: 'Stock Audit & Order Booking',
     notes: 'Stock verified for YH-222 Bhendi and Black Gram. Consignment delivered yesterday is in good condition.',
     photoUrl: '/seeds/seed_07.jpeg',
@@ -90,8 +94,8 @@ export const MOCK_VISITS: FieldVisit[] = [
     shopContact: '+91 98765 43216',
     distanceKm: 4.5,
     scheduledTime: '02:30 PM',
-    checkInTime: '02:40 PM',
-    status: 'In Progress',
+    visitedAt: '02:40 PM',
+    status: 'Visited',
     purpose: 'Stock Audit & Order Booking',
     notes: 'Reviewing current shelf space and marketing posters display.'
   },

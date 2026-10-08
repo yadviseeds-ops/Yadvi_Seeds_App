@@ -85,7 +85,7 @@ class _MyLocationScreenState extends State<MyLocationScreen> {
       // Send to backend if we have a profile
       if (_profile != null) {
         try {
-          await _feService.updateLocation(_profile!.id, position.latitude, position.longitude);
+          await _feService.updateLocation(position.latitude, position.longitude);
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location sent to server.'), backgroundColor: Colors.green));
         } catch (_) {
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not send location to server.'), backgroundColor: Colors.orange));

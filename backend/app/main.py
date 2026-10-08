@@ -16,6 +16,9 @@ from app.api.tracking import router as tracking_router
 from app.seed_data import init_db
 from app.core.firebase import init_firebase
 
+import os
+from fastapi.staticfiles import StaticFiles
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("yadvi_main")
 
@@ -48,6 +51,14 @@ app.include_router(shipments_router, prefix=settings.API_V1_STR)
 app.include_router(dashboard_router, prefix=settings.API_V1_STR)
 app.include_router(ws_router, prefix=settings.API_V1_STR)
 app.include_router(tracking_router, prefix=settings.API_V1_STR)
+
+# Mount Static Files for images (e.g. /seeds/seed_12.jpeg)
+public_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "public")
+if os.path.exists(public_dir):
+    app.mount("/seeds", StaticFiles(directory=os.path.join(public_dir, "seeds")), name="seeds")
+    visits_dir = os.path.join(public_dir, "visits")
+    os.makedirs(visits_dir, exist_ok=True)
+    app.mount("/public/visits", StaticFiles(directory=visits_dir), name="visits")
 
 
 @app.on_event("startup")

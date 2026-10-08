@@ -58,7 +58,7 @@ def get_admin_dashboard(
     total_visits_today = db.query(Visit).filter(Visit.scheduled_date >= today_start).count()
     completed_visits_today = db.query(Visit).filter(
         Visit.scheduled_date >= today_start,
-        Visit.status == "Completed"
+        Visit.status == "Visited"
     ).count()
 
     kpis = [

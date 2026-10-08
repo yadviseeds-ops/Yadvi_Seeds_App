@@ -37,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _visits = results[1] as List<VisitModel>;
         _orders = results[2] as List<OrderModel>;
         _isLoading = false;
+        _error = null;
       });
     } catch (e) {
       setState(() {
@@ -49,8 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final todayVisits = _visits.where((v) => v.isToday).toList();
-    final completed = todayVisits.where((v) => v.status == 'Completed').length;
-    final inProgress = todayVisits.where((v) => v.status == 'In Progress').length;
+    final completed = todayVisits.where((v) => v.status == 'Visited').length;
     final pending = todayVisits.where((v) => v.status == 'Pending').length;
 
     return Scaffold(
@@ -150,14 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        _buildStatCard('In Progress', '$inProgress', Icons.radio_button_checked, Colors.blue[700]!),
-                        const SizedBox(width: 10),
                         _buildStatCard('Pending', '$pending', Icons.access_time, Colors.orange[700]!),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
                     Row(
                       children: [
                         _buildStatCard('Assigned Orders', '${_orders.length}', Icons.shopping_bag, Colors.teal[700]!),
@@ -229,16 +222,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildVisitCard(VisitModel v) {
-    final Color statusColor = v.status == 'Completed'
+    final Color statusColor = v.status == 'Visited'
         ? Colors.green
-        : v.status == 'In Progress'
-            ? Colors.blue
-            : Colors.orange;
-    final IconData statusIcon = v.status == 'Completed'
+        : Colors.orange;
+    final IconData statusIcon = v.status == 'Visited'
         ? Icons.check_circle
-        : v.status == 'In Progress'
-            ? Icons.radio_button_checked
-            : Icons.access_time;
+        : Icons.access_time;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),

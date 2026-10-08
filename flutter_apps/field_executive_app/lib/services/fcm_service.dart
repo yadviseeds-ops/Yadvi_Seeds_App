@@ -2,7 +2,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:field_executive_app/core/network/api_client.dart';
 import 'package:field_executive_app/core/storage/local_storage.dart';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 class FcmService {

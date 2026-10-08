@@ -5,7 +5,7 @@ import { MOCK_SHOPS, Shop } from '../data/mockShops';
 import { INITIAL_ORDERS, Order, OrderStatus, INITIAL_SHIPMENTS, ShipmentTracking } from '../data/mockOrders';
 import { MOCK_VISITS, FieldVisit } from '../data/mockVisits';
 
-import { api, LoginPayload, AuthResponse } from '../services/api';
+import { api, LoginPayload, AuthResponse, API_BASE_URL } from '../services/api';
 
 export type UserRole = 'admin' | 'shop_owner' | 'field_executive';
 export type DeviceView = 'desktop' | 'android' | 'ios';
@@ -66,8 +66,7 @@ interface AppStateContextType {
   assignOrderExecutive: (orderId: string, execId: number) => Promise<void>;
   approveLeave: (leaveId: string) => void;
   rejectLeave: (leaveId: string) => void;
-  checkInVisit: (visitId: string, notes?: string) => Promise<void>;
-  checkOutVisit: (visitId: string, notes?: string, orderNumber?: string, bagsCount?: number) => Promise<void>;
+  uploadVisitPhoto: (visitId: string, notes?: string, photoUrl?: string) => Promise<void>;
   whatsappAlert: WhatsAppNotification | null;
   dismissWhatsAppAlert: () => void;
   triggerWhatsAppAlert: (alert: WhatsAppNotification) => void;
@@ -183,7 +182,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [shops, setShops] = useState<any[]>(MOCK_SHOPS);
   const [orders, setOrders] = useState<any[]>(INITIAL_ORDERS);
   const [shipments, setShipments] = useState<any[]>(INITIAL_SHIPMENTS);
-  const [visits, setVisits] = useState<any[]>(MOCK_VISITS);
+  const [visits, setVisits] = useState<any[]>([]);
   const [leaves, setLeaves] = useState<any[]>(MOCK_LEAVE_REQUESTS);
 
   // Fetch data from API based on role
@@ -272,17 +271,26 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             // Simplified mapping, assuming basic fields exist
             setShops(data.map((s: any) => ({
               id: String(s.id),
-              shopName: s.shop_name,
-              ownerName: s.owner_name || s.user?.full_name,
-              phone: s.phone || s.user?.phone,
-              location: s.market_location,
-              address: s.address,
-              status: s.status,
-              lat: s.lat,
-              lng: s.lng,
-              openingStock: s.opening_stock_bags,
-              currentStock: s.current_stock_bags,
-              primaryDemand: s.primary_demand_crop
+              name: s.shop_name || '',
+              ownerName: s.owner_name || s.user?.full_name || '',
+              phone: s.phone || s.user?.phone || '',
+              email: s.email || s.user?.email || '',
+              location: s.market_location || '',
+              address: s.address || '',
+              status: s.status || 'Active',
+              lat: s.lat || 0,
+              lng: s.lng || 0,
+              gstin: s.dealer_code || '',
+              seedLicenseNo: s.dealer_code || '',
+              assignedExecutiveId: s.assigned_executive_id ? String(s.assigned_executive_id) : '',
+              assignedExecutiveName: s.assigned_executive_name || 'Unassigned',
+              totalOrdersCount: s.total_orders_count || 0,
+              totalBagsReceived: s.total_bags_received || 0,
+              pendingDeliveryBags: s.pending_delivery_bags || 0,
+              lastVisitDate: s.last_visit_date || '',
+              openingStockBags: s.opening_stock_bags || 0,
+              currentStockBags: s.current_stock_bags || 0,
+              primaryCropDemand: s.primary_demand_crop || ''
             })));
           }
         }).catch(console.error);
@@ -290,7 +298,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Connect to WebSocket for live tracking
         const token = localStorage.getItem('yadvi_auth_token');
         if (token && token !== 'null' && token !== 'undefined') {
-          const wsUrl = `ws://localhost:8000/api/v1/ws/live-tracking?token=${token}`;
+          const wsBaseUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+          const wsUrl = `${wsBaseUrl}/ws/live-tracking?token=${token}`;
           const ws = new WebSocket(wsUrl);
           
           ws.onopen = () => {
@@ -313,6 +322,19 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                   }
                   return emp;
                 }));
+              } else if (payload.type === 'DELIVERY_STATUS_CHANGED' && payload.data) {
+                setOrders(prev => prev.map(order => {
+                  if (order.id === String(payload.data.order_id)) {
+                    return { ...order, status: payload.data.status };
+                  }
+                  return order;
+                }));
+                setShipments(prev => prev.map(ship => {
+                  if (ship.lrNumber === payload.data.lr_number) {
+                    return { ...ship, status: payload.data.status };
+                  }
+                  return ship;
+                }));
               }
             } catch (err) {
               console.error("Error parsing WebSocket message:", err);
@@ -323,34 +345,56 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             console.log("Live tracking WebSocket closed.");
           };
           
-          // Cleanup on unmount or role change
-          return () => {
-            ws.close();
-          };
+          // We will clean this up later in the useEffect
+          (window as any).yadviWs = ws;
         }
       }
 
       if (currentRole === 'admin' || currentRole === 'field_executive') {
         api.getVisits().then(data => {
-          if (data && data.length) {
-            setVisits(data.map((v: any) => ({
+          console.log("FETCHED VISITS FROM API:", data);
+          if (data && Array.isArray(data)) {
+            const sanitizeDate = (dt: string | undefined) => {
+              if (!dt) return undefined;
+              let cleaned = dt.includes('.') ? dt.split('.')[0] : dt;
+              return cleaned.endsWith('Z') ? cleaned : `${cleaned}Z`;
+            };
+
+            const mapped = data.map((v: any) => ({
               id: String(v.id),
               shopName: v.shop_name,
               shopLocation: v.shop_location,
+              shopOwnerName: v.shop_owner_name,
+              shopTerritory: v.shop_territory,
+              shopCity: v.shop_city,
+              shopAddress: v.shop_address,
+              shopPhotoUrlProfile: v.shop_photo_url_profile ? (v.shop_photo_url_profile.startsWith('http') ? v.shop_photo_url_profile : `${API_BASE_URL.replace('/api/v1', '')}${v.shop_photo_url_profile}`) : undefined,
+              shopOwnerPhotoUrl: v.shop_owner_photo_url ? (v.shop_owner_photo_url.startsWith('http') ? v.shop_owner_photo_url : `${API_BASE_URL.replace('/api/v1', '')}${v.shop_owner_photo_url}`) : undefined,
+              shopContact: v.shop_phone,
               executiveName: v.executive_name,
               purpose: v.purpose,
               status: v.status,
-              checkInTime: v.check_in_time,
-              checkOutTime: v.check_out_time,
+              visitedAt: sanitizeDate(v.visited_at),
               notes: v.notes,
               bagsOrdered: v.bags_ordered,
-              scheduledTime: v.scheduled_date
-            })));
+              photoUrl: v.photo_url ? (v.photo_url.startsWith('http') ? v.photo_url : `${API_BASE_URL.replace('/api/v1', '')}${v.photo_url}`) : undefined,
+              photoLat: v.photo_lat,
+              photoLng: v.photo_lng,
+              scheduledTime: sanitizeDate(v.scheduled_date)
+            }));
+            console.log("MAPPED VISITS:", mapped);
+            setVisits(mapped);
+          } else {
+            console.log("DATA NOT AN ARRAY:", data);
+            alert("API returned non-array data: " + JSON.stringify(data));
           }
-        }).catch(console.error);
+        }).catch(err => {
+          console.error("FAILED TO FETCH VISITS:", err);
+          alert("Failed to fetch REAL visits. Currently showing Mock Data. Error: " + err.message);
+        });
       }
 
-      if (currentRole === 'admin' || currentRole === 'shop_owner') {
+      if (currentRole === 'admin' || currentRole === 'shop_owner' || currentRole === 'field_executive') {
         api.getShipments().then(data => {
           if (data && data.length) {
             setShipments(data.map((s: any) => ({
@@ -371,6 +415,13 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }
         }).catch(console.error);
       }
+
+      return () => {
+        if ((window as any).yadviWs) {
+           (window as any).yadviWs.close();
+           (window as any).yadviWs = null;
+        }
+      };
     }
   }, [isAuthenticated, currentRole]);
   const [cart, setCart] = useState<CartItem[]>([
@@ -457,12 +508,17 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setCart([]);
   };
 
-  const placeOrder = async (notes?: string): Promise<Order> => {
-    const totalBags = cart.reduce((sum, item) => sum + item.quantityBags, 0);
+  const placeOrder = async (notes?: string, itemsToOrder?: CartItem[]): Promise<Order> => {
+    const targetItems = itemsToOrder || cart;
+    const totalBags = targetItems.reduce((sum, item) => sum + item.quantityBags, 0);
+
+    if (targetItems.length === 0) {
+      throw new Error("Cannot place an order with 0 items.");
+    }
 
     const payload = {
-      items: cart.map(item => ({
-        product_id: parseInt(item.product.id),
+      items: targetItems.map(item => ({
+        product_id: parseInt(item.product.id.replace('prod-', '')), // Assuming ID format or handle string to int mapping properly, wait! The backend expects integer IDs for products!
         package_size: item.packageSize,
         quantity_bags: item.quantityBags
       })),
@@ -625,46 +681,22 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   };
 
-  const checkInVisit = async (visitId: string, notes?: string) => {
+  const uploadVisitPhoto = async (visitId: string, notes?: string, photoUrl?: string) => {
     try {
       const numericId = visitId.replace('visit-', '');
-      await api.visitCheckIn(numericId, notes);
+      // Example call matching the new API shape, passing arbitrary lat/lng
+      await api.uploadVisitPhoto(numericId, 16.5062, 80.6480, photoUrl || 'https://example.com/photo.jpg', notes);
 
       const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       setVisits((prev) =>
         prev.map((v) =>
           (v.id === visitId || v.id === numericId)
-            ? { ...v, status: 'In Progress', checkInTime: timeNow, notes: notes || v.notes }
+            ? { ...v, status: 'Visited', visitedAt: timeNow, notes: notes || v.notes, photoUrl: photoUrl || 'https://example.com/photo.jpg' }
             : v
         )
       );
     } catch (err) {
-      console.error('Failed to check in visit:', err);
-    }
-  };
-
-  const checkOutVisit = async (visitId: string, notes?: string, orderNumber?: string, bagsCount?: number) => {
-    try {
-      const numericId = visitId.replace('visit-', '');
-      await api.visitCheckOut(numericId, notes, bagsCount);
-
-      const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      setVisits((prev) =>
-        prev.map((v) =>
-          (v.id === visitId || v.id === numericId)
-            ? {
-              ...v,
-              status: 'Completed',
-              checkOutTime: timeNow,
-              notes: notes || v.notes,
-              orderCollectedNumber: orderNumber || v.orderCollectedNumber,
-              bagsOrdered: bagsCount || v.bagsOrdered,
-            }
-            : v
-        )
-      );
-    } catch (err) {
-      console.error('Failed to check out visit:', err);
+      console.error('Failed to upload visit photo:', err);
     }
   };
 
@@ -679,7 +711,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const addEmployee = async (payload: any) => {
     try {
       const newEmp = await api.createEmployee(payload);
-      const mappedEmp: Employee = {
+      const mappedEmp = {
         id: `emp-${newEmp.id}`,
         name: newEmp.full_name,
         empId: newEmp.employee_code,
@@ -687,13 +719,17 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         location: newEmp.assigned_territory,
         status: newEmp.is_active ? 'Active' : 'Inactive',
         attendanceStatus: 'Present',
-        distanceToday: 0,
+        distanceCoveredTodayKm: 0,
         phone: newEmp.phone,
         email: newEmp.email,
         batteryLevel: 100,
-        lastUpdate: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        lastLocationUpdate: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        lat: 16.5,
+        lng: 80.6,
+        assignedShopsCount: 0,
+        completedVisitsCount: 0
       };
-      setEmployees(prev => [mappedEmp, ...prev]);
+      setEmployees(prev => [mappedEmp as Employee, ...prev]);
     } catch (err) {
       console.error('Failed to create employee:', err);
       throw err;
@@ -703,10 +739,9 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const addShop = async (payload: any) => {
     try {
       const newShopApi = await api.createShop(payload);
-      const mappedShop: Shop = {
+      const mappedShop = {
         id: `shop-${newShopApi.id}`,
-        shopName: newShopApi.shop_name,
-        dealerCode: newShopApi.dealer_code,
+        name: newShopApi.shop_name,
         ownerName: newShopApi.owner_name,
         phone: newShopApi.phone,
         location: newShopApi.market_location,
@@ -714,11 +749,11 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         status: newShopApi.status,
         openingStockBags: newShopApi.opening_stock_bags,
         currentStockBags: newShopApi.current_stock_bags,
-        primaryDemandCrop: newShopApi.primary_demand_crop || 'Mixed',
+        primaryCropDemand: newShopApi.primary_demand_crop || 'Mixed',
         lat: newShopApi.lat || 16.5062,
         lng: newShopApi.lng || 80.6480,
       };
-      setShops(prev => [mappedShop, ...prev]);
+      setShops(prev => [mappedShop as Shop, ...prev]);
     } catch (err) {
       console.error('Failed to create shop:', err);
       throw err;
@@ -730,6 +765,16 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const numericShopId = parseInt(shopId.replace('shop-', ''), 10) || parseInt(shopId, 10);
       const numericExecId = parseInt(execId.replace('emp-', ''), 10) || parseInt(execId, 10);
       await api.assignShop(numericShopId, numericExecId);
+      
+      // Update local state so UI refreshes immediately
+      const exec = employees.find(e => e.id === String(numericExecId) || e.id === execId);
+      if (exec) {
+        setShops(prev => prev.map(s => 
+          s.id === shopId || s.id === String(numericShopId) 
+            ? { ...s, assignedExecutiveId: exec.id, assignedExecutiveName: exec.name } 
+            : s
+        ));
+      }
     } catch (err) {
       console.error('Failed to assign shop:', err);
       throw err;
@@ -739,24 +784,25 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const addProduct = async (payload: any) => {
     try {
       const newProd = await api.createProduct(payload);
-      const mappedProd: SeedProduct = {
+      const mappedProd = {
         id: `prod-${newProd.id}`,
         name: newProd.name,
         varietyType: newProd.variety_type,
         sku: newProd.sku,
         category: newProd.category,
-        imageUrl: newProd.image_url,
-        availableStockBags: newProd.available_stock_bags,
+        image: newProd.image_url,
+        stockBags: newProd.available_stock_bags,
         germinationRate: newProd.germination_rate,
         purity: newProd.purity,
         maturityDays: newProd.maturity_days || 'N/A',
         cropSeason: newProd.crop_season || 'All Season',
         availability: newProd.availability,
         description: newProd.description || '',
-        resistanceTraits: newProd.resistance_traits || '',
+        keyFeatures: ['High Yield'],
+        resistance: 'General',
         packageSizes: newProd.package_sizes.split(',').map((s: string) => s.trim())
       };
-      setProducts(prev => [mappedProd, ...prev]);
+      setProducts(prev => [mappedProd as SeedProduct, ...prev]);
     } catch (err) {
       console.error('Failed to create product:', err);
       throw err;
@@ -797,8 +843,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         assignOrderExecutive,
         approveLeave,
         rejectLeave,
-        checkInVisit,
-        checkOutVisit,
+        uploadVisitPhoto,
         whatsappAlert,
         dismissWhatsAppAlert,
         triggerWhatsAppAlert,

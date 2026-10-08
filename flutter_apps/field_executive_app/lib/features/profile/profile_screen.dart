@@ -30,6 +30,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _profile = profile;
         _isLoading = false;
+        _error = null;
       });
     } catch (e) {
       setState(() {

@@ -96,6 +96,7 @@ class HomeTab extends StatelessWidget {
           // Nav handling via bottom nav ideally, omitted here for simplicity
         },
         child: Column(
+
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 48, color: color),

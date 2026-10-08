@@ -18,6 +18,7 @@ class ApiClient {
 
   Future<http.Response> get(String endpoint) async {
     final url = Uri.parse('${AppConfig.apiBaseUrl}$endpoint');
+    print('DEBUG API_URL: $url');
     final headers = await _getHeaders();
     return await http.get(url, headers: headers);
   }
@@ -38,5 +39,21 @@ class ApiClient {
     final url = Uri.parse('${AppConfig.apiBaseUrl}$endpoint');
     final headers = await _getHeaders();
     return await http.delete(url, headers: headers);
+  }
+
+  Future<http.Response> postMultipart(
+      String endpoint, Map<String, String> fields, String filePath) async {
+    final url = Uri.parse('${AppConfig.apiBaseUrl}$endpoint');
+    final headers = await _getHeaders();
+    headers.remove('Content-Type'); // Let http handle the boundary
+
+    var request = http.MultipartRequest('POST', url);
+    request.headers.addAll(headers);
+    request.fields.addAll(fields);
+
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+
+    final streamedResponse = await request.send();
+    return await http.Response.fromStream(streamedResponse);
   }
 }

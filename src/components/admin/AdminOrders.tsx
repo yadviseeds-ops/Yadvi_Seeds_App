@@ -45,8 +45,8 @@ export const AdminOrders: React.FC = () => {
       Confirmed: 'Processing',
       Processing: 'Packed',
       Packed: 'Dispatched',
-      Dispatched: 'In Transit',
-      'In Transit': 'Delivered',
+      Dispatched: 'Dispatched', // Field Executive will take over from here
+      'In Transit': 'In Transit', // Field Executive manages this state
       Delivered: 'Delivered',
       Cancelled: 'Cancelled',
     };
@@ -336,36 +336,12 @@ export const AdminOrders: React.FC = () => {
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   {selectedOrder.status === 'New' && (
-                    <div className="flex flex-col gap-2 w-full mb-2 bg-white p-3 rounded-xl border border-emerald-200">
-                      <label className="text-[10px] font-bold text-slate-600">Assign Field Executive</label>
-                      <select 
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs"
-                        value={selectedExecutive}
-                        onChange={(e) => setSelectedExecutive(e.target.value)}
-                      >
-                        <option value="">Select Field Executive</option>
-                        {employees.map(emp => (
-                          <option key={emp.id} value={emp.id}>{emp.name}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={async () => {
-                          if (selectedExecutive) {
-                            await assignOrderExecutive(selectedOrder.id, parseInt(selectedExecutive));
-                            // Refresh modal data
-                            const updated = orders.find((o) => o.id === selectedOrder.id);
-                            if (updated) {
-                              setSelectedOrder({ ...updated, status: 'Confirmed', assignedExecutiveId: selectedExecutive, assignedExecutiveName: employees.find(e => String(e.id) === selectedExecutive)?.name || '' });
-                            }
-                          } else {
-                            alert("Please select a field executive first");
-                          }
-                        }}
-                        className="px-4 py-2 mt-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs transition"
-                      >
-                        ✓ Assign & Confirm Order
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleAdvanceStatus(selectedOrder)}
+                      className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs transition"
+                    >
+                      ✓ Confirm Order
+                    </button>
                   )}
                   {selectedOrder.status === 'Confirmed' && (
                     <button
@@ -393,21 +369,16 @@ export const AdminOrders: React.FC = () => {
                     </button>
                   )}
                   {selectedOrder.status === 'Dispatched' && (
-                    <button
-                      onClick={() => handleAdvanceStatus(selectedOrder)}
-                      className="px-4 py-2 bg-cyan-700 hover:bg-cyan-800 text-white font-bold rounded-xl text-xs transition"
-                    >
-                      🚚 Mark In Transit
-                    </button>
+                    <div className="flex items-center gap-2 text-cyan-800 font-bold">
+                      <Truck className="w-4 h-4 text-cyan-600" />
+                      <span>Order Dispatched. LR Available for Tracking.</span>
+                    </div>
                   )}
                   {selectedOrder.status === 'In Transit' && (
-                    <button
-                      onClick={() => handleAdvanceStatus(selectedOrder)}
-                      className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5"
-                    >
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      <span>Confirm Delivery & Close Order</span>
-                    </button>
+                    <div className="flex items-center gap-2 text-blue-800 font-bold">
+                      <Truck className="w-4 h-4 text-blue-600" />
+                      <span>Order In Transit. Delivery pending.</span>
+                    </div>
                   )}
                   {selectedOrder.status === 'Delivered' && (
                     <div className="flex items-center gap-2 text-emerald-800 font-bold">

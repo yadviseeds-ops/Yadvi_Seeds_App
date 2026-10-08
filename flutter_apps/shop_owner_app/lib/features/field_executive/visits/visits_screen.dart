@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../services/fe_service.dart';
 import '../../../models/visit_model.dart';
+import 'visit_details_screen.dart';
 
 class VisitsScreen extends StatefulWidget {
   const VisitsScreen({super.key});
@@ -35,6 +39,7 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
       setState(() {
         _visits = visits;
         _isLoading = false;
+        _error = null;
       });
     } catch (e) {
       setState(() {
@@ -44,84 +49,8 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
     }
   }
 
-  Future<void> _performCheckIn(VisitModel visit) async {
-    final notesController = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Check In: ${visit.shopName}'),
-        content: TextField(
-          controller: notesController,
-          decoration: const InputDecoration(labelText: 'Notes (optional)', border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D4A32), foregroundColor: Colors.white),
-            child: const Text('Check In'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+  // _performUploadPhoto removed as we now navigate to VisitDetailsScreen
 
-    try {
-      await _feService.checkInVisit(visit.id, notes: notesController.text);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Checked in at ${visit.shopName}')));
-      _loadVisits();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}')));
-    }
-  }
-
-  Future<void> _performCheckOut(VisitModel visit) async {
-    final notesController = TextEditingController();
-    final bagsController = TextEditingController(text: '0');
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Check Out: ${visit.shopName}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: bagsController,
-              decoration: const InputDecoration(labelText: 'Bags Ordered', border: OutlineInputBorder()),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: notesController,
-              decoration: const InputDecoration(labelText: 'Visit Notes', border: OutlineInputBorder()),
-              maxLines: 2,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700], foregroundColor: Colors.white),
-            child: const Text('Check Out'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    try {
-      await _feService.checkOutVisit(
-        visit.id,
-        notes: notesController.text,
-        bagsOrdered: int.tryParse(bagsController.text) ?? 0,
-      );
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Check-out successful!')));
-      _loadVisits();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}')));
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -189,7 +118,7 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
   }
 
   Widget _buildVisitCard(VisitModel v, {required bool showActions}) {
-    final Color statusColor = v.status == 'Completed' ? Colors.green : v.status == 'In Progress' ? Colors.blue : Colors.orange;
+    final Color statusColor = v.status == 'Visited' ? Colors.green : Colors.orange;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -227,30 +156,34 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
               children: [
                 _buildInfoRow(Icons.location_on, v.shopLocation),
                 _buildInfoRow(Icons.calendar_today, v.scheduledDate.toLocal().toString().substring(0, 16)),
-                if (v.checkInTime != null) _buildInfoRow(Icons.login, 'In: ${v.checkInTime!.toLocal().toString().substring(11, 16)}'),
-                if (v.checkOutTime != null) _buildInfoRow(Icons.logout, 'Out: ${v.checkOutTime!.toLocal().toString().substring(11, 16)}'),
+                if (v.visitedAt != null) _buildInfoRow(Icons.check_circle, 'Visited at: ${v.visitedAt!.toLocal().toString().substring(11, 16)}'),
+                if (v.photoUrl != null) _buildInfoRow(Icons.image, 'Photo Uploaded'),
                 if (v.notes != null && v.notes!.isNotEmpty) _buildInfoRow(Icons.notes, v.notes!),
                 if (v.bagsOrdered > 0) _buildInfoRow(Icons.inventory, '${v.bagsOrdered} Bags Ordered'),
                 if (showActions) ...[
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      if (v.status == 'Pending')
                         Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => _performCheckIn(v),
-                            icon: const Icon(Icons.login, size: 16),
-                            label: const Text('Check In'),
-                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D4A32), foregroundColor: Colors.white),
-                          ),
-                        ),
-                      if (v.status == 'In Progress')
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => _performCheckOut(v),
-                            icon: const Icon(Icons.logout, size: 16),
-                            label: const Text('Check Out'),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700], foregroundColor: Colors.white),
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => VisitDetailsScreen(visit: v),
+                                ),
+                              );
+                              if (result == true) {
+                                setState(() => _isLoading = true);
+                                _loadVisits();
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: v.status == 'Pending' ? const Color(0xFF0D4A32) : Colors.white,
+                              foregroundColor: v.status == 'Pending' ? Colors.white : const Color(0xFF0D4A32),
+                              side: v.status == 'Pending' ? null : const BorderSide(color: Color(0xFF0D4A32)),
+                            ),
+                            child: const Text('Open Visit'),
                           ),
                         ),
                     ],

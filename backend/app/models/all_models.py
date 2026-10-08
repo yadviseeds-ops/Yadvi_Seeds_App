@@ -41,9 +41,13 @@ class ShopOwner(Base):
     shop_name = Column(String(150), nullable=False)
     dealer_code = Column(String(50), unique=True, nullable=False)
     market_location = Column(String(150), nullable=False)
+    territory = Column(String(100), nullable=True)
+    city = Column(String(100), nullable=True)
     address = Column(Text, nullable=False)
     lat = Column(Float, nullable=True)
     lng = Column(Float, nullable=True)
+    shop_photo_url = Column(String(255), nullable=True)
+    owner_photo_url = Column(String(255), nullable=True)
     opening_stock_bags = Column(Integer, default=0)
     current_stock_bags = Column(Integer, default=0)
     primary_demand_crop = Column(String(100), nullable=True)
@@ -151,13 +155,19 @@ class Visit(Base):
     shop_id = Column(Integer, ForeignKey("shop_owners.id"), nullable=False)
     purpose = Column(String(100), default="Dealer Audit & Stock Booking")
     status = Column(String(50), default="Pending")  # Pending, In Progress, Completed
-    check_in_time = Column(DateTime, nullable=True)
+    check_in_time = Column(DateTime, nullable=True) # Keeping for backwards compat temporarily
     check_out_time = Column(DateTime, nullable=True)
     check_in_lat = Column(Float, nullable=True)
     check_in_lng = Column(Float, nullable=True)
     notes = Column(Text, nullable=True)
     bags_ordered = Column(Integer, default=0)
     scheduled_date = Column(DateTime, default=datetime.utcnow)
+    
+    # New Geotagged Visit Photo Requirements
+    visit_photo_url = Column(String(255), nullable=True)
+    photo_lat = Column(Float, nullable=True)
+    photo_lng = Column(Float, nullable=True)
+    visited_at = Column(DateTime, nullable=True)
 
     executive = relationship("FieldExecutive", back_populates="visits")
     shop = relationship("ShopOwner", back_populates="visits")
@@ -219,29 +229,15 @@ class FCMDeviceToken(Base):
 
     user = relationship("User", back_populates="fcm_tokens")
 
-class TrackingSession(Base):
-    __tablename__ = "tracking_sessions"
+class FELocation(Base):
+    __tablename__ = "fe_locations"
 
     id = Column(Integer, primary_key=True, index=True)
-    shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=False)
     executive_id = Column(Integer, ForeignKey("field_executives.id"), nullable=False)
-    status = Column(String(50), default="Active")  # Active, Completed, Cancelled
-    start_time = Column(DateTime, default=datetime.utcnow)
-    end_time = Column(DateTime, nullable=True)
-
-    shipment = relationship("Shipment")
-    executive = relationship("FieldExecutive")
-    location_points = relationship("LocationPoint", back_populates="session", cascade="all, delete-orphan")
-
-class LocationPoint(Base):
-    __tablename__ = "location_points"
-
-    id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("tracking_sessions.id"), nullable=False)
     lat = Column(Float, nullable=False)
     lng = Column(Float, nullable=False)
     accuracy = Column(Float, nullable=True)
     speed = Column(Float, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
-    session = relationship("TrackingSession", back_populates="location_points")
+    executive = relationship("FieldExecutive")

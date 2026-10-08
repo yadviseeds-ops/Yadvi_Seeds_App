@@ -31,6 +31,7 @@ class _TodaysPlanScreenState extends State<TodaysPlanScreen> {
         _todayVisits = allVisits.where((v) => v.isToday).toList();
         _orders = results[1] as List<OrderModel>;
         _isLoading = false;
+        _error = null;
       });
     } catch (e) {
       setState(() {
@@ -73,8 +74,7 @@ class _TodaysPlanScreenState extends State<TodaysPlanScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
                             _buildCountItem('Total', _todayVisits.length, Colors.white),
-                            _buildCountItem('Done', _todayVisits.where((v) => v.status == 'Completed').length, Colors.green[200]!),
-                            _buildCountItem('Active', _todayVisits.where((v) => v.status == 'In Progress').length, Colors.blue[200]!),
+                            _buildCountItem('Done', _todayVisits.where((v) => v.status == 'Visited').length, Colors.green[200]!),
                             _buildCountItem('Pending', _todayVisits.where((v) => v.status == 'Pending').length, Colors.orange[200]!),
                           ],
                         ),
@@ -122,8 +122,8 @@ class _TodaysPlanScreenState extends State<TodaysPlanScreen> {
   }
 
   Widget _buildPlanItem(int seq, VisitModel v) {
-    final Color statusColor = v.status == 'Completed' ? Colors.green : v.status == 'In Progress' ? Colors.blue : Colors.orange;
-    final IconData statusIcon = v.status == 'Completed' ? Icons.check_circle : v.status == 'In Progress' ? Icons.radio_button_checked : Icons.radio_button_unchecked;
+    final Color statusColor = v.status == 'Visited' ? Colors.green : Colors.orange;
+    final IconData statusIcon = v.status == 'Visited' ? Icons.check_circle : Icons.radio_button_unchecked;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

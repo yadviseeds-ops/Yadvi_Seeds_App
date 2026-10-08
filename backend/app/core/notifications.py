@@ -77,11 +77,12 @@ class NotificationService:
         # 1. Save notification to DB
         content = f"New YADVI Order\n\nOrder Number: {order.order_number}\nShop: {order.shop.shop_name if order.shop else 'N/A'}\nTotal Quantity: {order.total_quantity_bags} bags\n\nPlease review and assign a Field Executive."
         db_notif = Notification(
-            user_id=admin_user.id,
-            title="New Order Received",
-            content=content,
-            type="Order_Alert",
-            is_read=False
+            recipient_phone=admin_user.phone,
+            channel="WhatsApp",
+            order_number=order.order_number,
+            shop_name=order.shop.shop_name if order.shop else 'N/A',
+            total_bags=order.total_quantity_bags,
+            message_content=content
         )
         self.db.add(db_notif)
         self.db.commit()
@@ -101,11 +102,12 @@ class NotificationService:
         # 1. Save to DB
         content = f"New order #{order.order_number} assigned for shop {order.shop.shop_name if order.shop else 'N/A'}."
         db_notif = Notification(
-            user_id=fe_user.id,
-            title="Order Assigned",
-            content=content,
-            type="Assignment",
-            is_read=False
+            recipient_phone=fe_user.phone,
+            channel="Push",
+            order_number=order.order_number,
+            shop_name=order.shop.shop_name if order.shop else 'N/A',
+            total_bags=order.total_quantity_bags,
+            message_content=content
         )
         self.db.add(db_notif)
         self.db.commit()
@@ -124,11 +126,12 @@ class NotificationService:
     def notify_shop_order_status(self, order, shop_user: User):
         content = f"Your order #{order.order_number} is now {order.status}."
         db_notif = Notification(
-            user_id=shop_user.id,
-            title="Order Status Update",
-            content=content,
-            type="Order_Status",
-            is_read=False
+            recipient_phone=shop_user.phone,
+            channel="Push",
+            order_number=order.order_number,
+            shop_name=order.shop.shop_name if order.shop else 'N/A',
+            total_bags=order.total_quantity_bags,
+            message_content=content
         )
         self.db.add(db_notif)
         self.db.commit()

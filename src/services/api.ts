@@ -3,7 +3,7 @@
  * Connects React Frontend to FastAPI Backend
  */
 
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+export const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 export interface LoginPayload {
   role: string;
@@ -60,6 +60,12 @@ class ApiService {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        this.removeToken();
+        localStorage.removeItem('yadvi_auth_user');
+        window.location.reload();
+        throw new Error("Session expired, logging out.");
+      }
       let errorMessage = `HTTP Error ${response.status}`;
       try {
         const errorData = await response.json();
@@ -206,17 +212,15 @@ class ApiService {
     return this.request('/visits');
   }
   
-  async visitCheckIn(visitId: string | number, notes?: string): Promise<any> {
-    return this.request(`/visits/${visitId}/checkin`, {
+  async uploadVisitPhoto(visitId: string | number, lat: number, lng: number, photo_url: string, notes?: string): Promise<any> {
+    return this.request(`/visits/${visitId}/upload-photo`, {
       method: 'POST',
-      body: JSON.stringify({ notes }),
-    });
-  }
-  
-  async visitCheckOut(visitId: string | number, notes?: string, bags_ordered?: number): Promise<any> {
-    return this.request(`/visits/${visitId}/checkout`, {
-      method: 'POST',
-      body: JSON.stringify({ notes, bags_ordered }),
+      body: JSON.stringify({
+        photo_lat: lat,
+        photo_lng: lng,
+        photo_url,
+        notes
+      }),
     });
   }
 

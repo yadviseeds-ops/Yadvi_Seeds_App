@@ -25,8 +25,7 @@ import {
 export const FieldExecutiveApp: React.FC = () => {
   const {
     visits,
-    checkInVisit,
-    checkOutVisit,
+    uploadVisitPhoto,
     products,
     placeOrder,
     orders,
@@ -48,39 +47,43 @@ export const FieldExecutiveApp: React.FC = () => {
   const [visitPhoto, setVisitPhoto] = useState<string | null>(null);
 
   // Quick order booking states
-  const [selectedProduct, setSelectedProduct] = useState<SeedProduct>(products[0]);
-  const [orderBags, setOrderBags] = useState(15);
+  const [orderQuantities, setOrderQuantities] = useState<Record<string, number>>({});
   const [orderSuccessMsg, setOrderSuccessMsg] = useState('');
   const [eodSubmitted, setEodSubmitted] = useState(false);
+  const [eodPayments, setEodPayments] = useState('');
+  const [eodKgs, setEodKgs] = useState('');
+  const [eodNotes, setEodNotes] = useState('');
 
-  const completedVisits = execVisits.filter((v) => v.status === 'Completed').length;
-  const pendingVisits = execVisits.filter((v) => v.status !== 'Completed').length;
+  const completedVisits = execVisits.filter((v) => v.status === 'Visited').length;
+  const pendingVisits = execVisits.filter((v) => v.status !== 'Visited').length;
 
-  const handleCheckIn = async (visit: FieldVisit) => {
-    await checkInVisit(visit.id, 'Officer reached shop front. GPS verified.');
-    setSelectedVisit({ ...visit, status: 'In Progress', checkInTime: 'Just Now' });
-    alert(`GPS Location & Timestamp logged for ${visit.shopName}`);
-  };
-
-  const handleSimulatePhoto = () => {
-    setVisitPhoto('/seeds/seed_12.jpeg');
-    alert('Shop shelf and seed display photo captured!');
-  };
-
-  const handleCheckOut = async (visit: FieldVisit) => {
-    await checkOutVisit(visit.id, visitNotes || 'Visit completed successfully.', undefined, 25);
-    setSelectedVisit({ ...visit, status: 'Completed', checkOutTime: 'Just Now' });
-    alert(`Check-out recorded for ${visit.shopName}. Visit marked Completed!`);
+  const handleUploadPhoto = async (visit: FieldVisit) => {
+    await uploadVisitPhoto(visit.id, visitNotes || 'Visit completed.', visitPhoto || '/seeds/seed_12.jpeg');
+    setSelectedVisit({ ...visit, status: 'Visited', visitedAt: 'Just Now' });
+    alert(`Photo uploaded and visit completed for ${visit.shopName}`);
   };
 
   const handleCollectOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    const items = products.filter(p => (orderQuantities[p.id] || 0) > 0).map(p => ({
+      product: p,
+      packageSize: 'KG', // Required by requirement: "entered manually in KG"
+      quantityBags: orderQuantities[p.id] // Reusing the field for the KG value
+    }));
+
+    if (items.length === 0) {
+      alert("Please enter a quantity for at least one product.");
+      return;
+    }
+
     try {
-      const newOrd = await placeOrder(`Direct field order collected by ${currentExec.name}`);
-      setOrderSuccessMsg(`Seed Order ${newOrd.orderNumber} placed for ${orderBags} bags of ${selectedProduct.name}!`);
+      const newOrd = await placeOrder(`Direct field order collected by ${currentExec.name}`, items);
+      setOrderSuccessMsg(`Seed Order ${newOrd.orderNumber} placed for ${items.length} varieties!`);
+      setOrderQuantities({});
       setTimeout(() => setOrderSuccessMsg(''), 4000);
     } catch (err) {
       console.error('Failed to collect order:', err);
+      alert("Failed to place order.");
     }
   };
 
@@ -127,7 +130,7 @@ export const FieldExecutiveApp: React.FC = () => {
               <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-emerald-800/80 text-center">
                 <div>
                   <div className="text-lg font-black text-emerald-300">{completedVisits}</div>
-                  <div className="text-[10px] text-emerald-200/70">Completed</div>
+                  <div className="text-[10px] text-emerald-200/70">Visited</div>
                 </div>
                 <div>
                   <div className="text-lg font-black text-amber-300">{pendingVisits}</div>
@@ -151,7 +154,7 @@ export const FieldExecutiveApp: React.FC = () => {
                 </div>
                 <div className="text-left">
                   <div className="font-bold text-xs text-slate-900">Dealer Visits</div>
-                  <div className="text-[10px] text-slate-400">Check In / Out</div>
+                  <div className="text-[10px] text-slate-400">Upload Photo</div>
                 </div>
               </button>
 
@@ -192,7 +195,7 @@ export const FieldExecutiveApp: React.FC = () => {
                   onClick={() => setActiveNav('visits')}
                   className="mt-3 w-full py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-lg text-xs transition"
                 >
-                  Start Visit & Check In →
+                  Start Visit →
                 </button>
               </div>
             </div>
@@ -219,27 +222,43 @@ export const FieldExecutiveApp: React.FC = () => {
                   key={v.id}
                   className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-xs text-slate-900">{v.shopName}</h4>
-                      <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3 h-3 text-emerald-600" />
-                        <span>{v.shopAddress} ({v.distanceKm} km)</span>
+                  <div className="flex items-start justify-between">
+                    <div className="flex gap-3 items-center">
+                      {v.shopPhotoUrlProfile ? (
+                        <img src={v.shopPhotoUrlProfile} alt="Shop" className="w-10 h-10 rounded-lg object-cover border border-slate-200" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center border border-emerald-200">
+                          <MapPin className="w-5 h-5 text-emerald-600" />
+                        </div>
+                      )}
+                      <div>
+                        <h4 className="font-bold text-xs text-slate-900">{v.shopName}</h4>
+                        {v.shopOwnerName && <div className="text-[10px] text-slate-700">Owner: {v.shopOwnerName}</div>}
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          <span>{v.shopAddress}</span>
+                          {(v.shopCity || v.shopTerritory) && <span>, {v.shopCity} {v.shopTerritory ? `(${v.shopTerritory})` : ''}</span>}
+                          {v.distanceKm && <span> • {v.distanceKm} km</span>}
+                        </div>
                       </div>
                     </div>
 
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        v.status === 'Completed'
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                        v.status === 'Visited'
                           ? 'bg-emerald-100 text-emerald-800'
-                          : v.status === 'In Progress'
-                          ? 'bg-blue-100 text-blue-800 animate-pulse'
                           : 'bg-slate-100 text-slate-700'
                       }`}
                     >
                       {v.status}
                     </span>
                   </div>
+
+                  {v.shopOwnerPhotoUrl && (
+                     <div className="flex items-center gap-2 px-2">
+                       <img src={v.shopOwnerPhotoUrl} alt="Owner" className="w-6 h-6 rounded-full object-cover border border-slate-300" />
+                       <span className="text-[10px] text-slate-600">Owner Photo Verified</span>
+                     </div>
+                  )}
 
                   <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
                     <div className="text-[11px] text-slate-600">
@@ -248,43 +267,44 @@ export const FieldExecutiveApp: React.FC = () => {
                     <div className="text-[11px] text-emerald-800">
                       <b>Purpose:</b> {v.purpose}
                     </div>
-                    {v.checkInTime && (
+                    {v.visitedAt && (
                       <div className="text-[10px] text-slate-400 font-mono">
-                        Check-in: {v.checkInTime} {v.checkOutTime ? `• Check-out: ${v.checkOutTime}` : ''}
+                        Visited At: {v.visitedAt}
                       </div>
                     )}
                   </div>
+
+                  {/* LR / Shipments Info for FE */}
+                  {shipments.filter(s => s.shopName === v.shopName).length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      <div className="text-[10px] font-bold text-slate-700">🚚 Pending Dispatches / LRs</div>
+                      {shipments.filter(s => s.shopName === v.shopName).map(s => (
+                        <div key={s.lrNumber} className="p-2 bg-blue-50/60 rounded-xl border border-blue-200/80 flex flex-col gap-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-mono font-bold text-blue-900">LR: {s.lrNumber}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-600 text-white font-bold">{s.status}</span>
+                          </div>
+                          <div className="text-[9px] text-slate-600 flex justify-between">
+                            <span>Transporter: {s.transporter}</span>
+                            <span>{s.totalBags} Bags</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-2 pt-1">
                     {v.status === 'Pending' && (
                       <button
-                        onClick={() => handleCheckIn(v)}
+                        onClick={() => handleUploadPhoto(v)}
                         className="flex-1 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs transition cursor-pointer"
                       >
-                        📍 Check In (Verify GPS)
+                        📷 Upload Visit Photo
                       </button>
                     )}
 
-                    {v.status === 'In Progress' && (
-                      <>
-                        <button
-                          onClick={handleSimulatePhoto}
-                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1"
-                        >
-                          <Camera className="w-3.5 h-3.5" />
-                          <span>Photo</span>
-                        </button>
-                        <button
-                          onClick={() => handleCheckOut(v)}
-                          className="flex-1 py-2 bg-blue-800 hover:bg-blue-900 text-white font-bold rounded-xl text-xs transition cursor-pointer"
-                        >
-                          ✓ Check Out
-                        </button>
-                      </>
-                    )}
-
-                    {v.status === 'Completed' && (
+                    {v.status === 'Visited' && (
                       <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold">
                         <CheckCircle className="w-4 h-4 text-emerald-600" />
                         <span>Visit Completed ({v.bagsOrdered ? `${v.bagsOrdered} Bags Booked` : 'Audited'})</span>
@@ -310,58 +330,42 @@ export const FieldExecutiveApp: React.FC = () => {
             )}
 
             <form onSubmit={handleCollectOrder} className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4 shadow-xs">
-              {/* Product Selector */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Select Seed Variety</label>
-                <select
-                  value={selectedProduct.id}
-                  onChange={(e) => {
-                    const found = products.find((p) => p.id === e.target.value);
-                    if (found) setSelectedProduct(found);
-                  }}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
-                >
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.sku})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Seed Packet Preview */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-3">
-                <div className="w-14 h-16 bg-white rounded-lg p-1 flex items-center justify-center shrink-0 border border-slate-200">
-                  <img src={selectedProduct.image} alt={selectedProduct.name} className="max-h-full object-contain" />
-                </div>
-                <div>
-                  <div className="font-bold text-xs text-slate-900">{selectedProduct.name}</div>
-                  <div className="text-[10px] text-emerald-700 font-mono">SKU: {selectedProduct.sku}</div>
-                  <div className="text-[10px] text-slate-500">Available: {selectedProduct.stockBags} Bags</div>
-                </div>
-              </div>
-
-              {/* Quantity in Bags (NO PRICE) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Order Quantity (Bags)</label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    min={1}
-                    value={orderBags}
-                    onChange={(e) => setOrderBags(parseInt(e.target.value) || 1)}
-                    className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-900"
-                  />
-                  <span className="text-xs font-semibold text-slate-500">Bags</span>
-                </div>
+              {/* Products List for Inline KG Order */}
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1 pb-4">
+                {products.map((p) => (
+                  <div key={p.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-3">
+                    <div className="w-14 h-16 bg-white rounded-lg p-1 flex items-center justify-center shrink-0 border border-slate-200">
+                      <img src={p.image} alt={p.name} className="max-h-full object-contain" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-xs text-slate-900 leading-tight">{p.name}</div>
+                      <div className="text-[10px] text-emerald-700 font-mono mt-0.5">SKU: {p.sku}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Pack Sizes: {p.packageSizes.join(', ')}</div>
+                    </div>
+                    <div className="shrink-0 w-24">
+                      <label className="block text-[10px] font-bold text-slate-700 mb-1 text-center">Qty (KG)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        placeholder="0"
+                        value={orderQuantities[p.id] || ''}
+                        onChange={(e) => {
+                          const val = Math.max(0, parseInt(e.target.value) || 0);
+                          setOrderQuantities(prev => ({ ...prev, [p.id]: val }));
+                        }}
+                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-mono font-bold text-center text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition"
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs shadow transition flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs shadow transition flex items-center justify-center gap-2 cursor-pointer mt-4"
               >
                 <CheckCircle className="w-4 h-4 text-emerald-300" />
-                <span>Submit Order to Central Admin ({orderBags} Bags)</span>
+                <span>Submit Order to Central Admin</span>
               </button>
             </form>
           </div>
@@ -397,30 +401,57 @@ export const FieldExecutiveApp: React.FC = () => {
                     <div className="font-bold text-slate-900 text-sm mt-0.5">{completedVisits} Shops</div>
                   </div>
                   <div>
-                    <span className="text-slate-400">Total Bags Booked:</span>
-                    <div className="font-mono font-bold text-emerald-800 text-sm mt-0.5">50 Bags</div>
-                  </div>
-                  <div>
                     <span className="text-slate-400">GPS Distance:</span>
-                    <div className="font-bold text-slate-900 mt-0.5">{currentExec.distanceCoveredTodayKm} km</div>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Working Hours:</span>
-                    <div className="font-bold text-slate-900 mt-0.5">8h 24m</div>
+                    <div className="font-bold text-slate-900 text-sm mt-0.5">{currentExec.distanceCoveredTodayKm} km</div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Executive Summary / Farmer Feedback</label>
-                  <textarea
-                    rows={3}
-                    defaultValue="High demand for YH-222 Bhendi in Guntur market yard. Retailers satisfied with timely seed moisture seals."
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
-                  />
+                <div className="space-y-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Total Payments Collected (₹)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={eodPayments}
+                      onChange={(e) => setEodPayments(e.target.value)}
+                      placeholder="e.g. 50000"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Total Seed Quantities Booked (KG)</label>
+                    <textarea
+                      rows={2}
+                      value={eodKgs}
+                      onChange={(e) => setEodKgs(e.target.value)}
+                      placeholder="e.g. Krishna-5: 150 KG, Divya-27: 50 KG"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">EOD Notes / Remarks</label>
+                    <textarea
+                      rows={3}
+                      value={eodNotes}
+                      onChange={(e) => setEodNotes(e.target.value)}
+                      placeholder="Feedback from farmers, market conditions, etc."
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
+                    />
+                  </div>
                 </div>
 
                 <button
-                  onClick={() => setEodSubmitted(true)}
+                  onClick={() => {
+                    if (!eodPayments || !eodKgs || !eodNotes) {
+                      alert("Please fill out all EOD fields before submitting.");
+                      return;
+                    }
+                    if (Number(eodPayments) < 0) {
+                      alert("Payments cannot be negative.");
+                      return;
+                    }
+                    setEodSubmitted(true);
+                  }}
                   className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs shadow transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />

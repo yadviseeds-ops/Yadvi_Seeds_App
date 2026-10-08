@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'services/gps_background_service.dart';
 import 'firebase_options.dart';
 
 import 'core/auth/auth_service.dart';
@@ -17,6 +18,8 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  await initializeBackgroundService();
 
   runApp(
     MultiProvider(

@@ -36,7 +36,7 @@ export const AdminProducts: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-900 flex items-center gap-2">
             <Package className="w-4 h-4 text-emerald-700" />
-            <span>Warehouse Stock: {products.reduce((acc, p) => acc + (p.availableStockBags || 0), 0).toLocaleString()} Bags</span>
+            <span>Warehouse Stock: {products.reduce((acc, p) => acc + (p.stockBags || 0), 0).toLocaleString()} Bags</span>
           </div>
           <button
             onClick={() => setIsAddModalOpen(true)}

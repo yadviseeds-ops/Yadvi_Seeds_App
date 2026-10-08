@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from app.core.database import get_db
 from app.core.security import get_current_user, require_role
-from app.models.all_models import ShopOwner, User
+from app.models.all_models import ShopOwner, User, FieldExecutive, Visit
 
 router = APIRouter(prefix="/shops", tags=["Shop Owners"])
 
@@ -18,7 +18,11 @@ class ShopCreate(BaseModel):
     shop_name: str
     dealer_code: str
     market_location: str
+    territory: Optional[str] = None
+    city: Optional[str] = None
     address: str
+    shop_photo_url: Optional[str] = None
+    owner_photo_url: Optional[str] = None
     primary_demand_crop: Optional[str] = None
 
 class ShopOut(BaseModel):
@@ -27,9 +31,13 @@ class ShopOut(BaseModel):
     shop_name: str
     dealer_code: str
     market_location: str
+    territory: Optional[str]
+    city: Optional[str]
     address: str
     lat: Optional[float]
     lng: Optional[float]
+    shop_photo_url: Optional[str]
+    owner_photo_url: Optional[str]
     opening_stock_bags: int
     current_stock_bags: int
     primary_demand_crop: Optional[str]
@@ -83,7 +91,11 @@ def create_shop(
         shop_name=payload.shop_name,
         dealer_code=payload.dealer_code,
         market_location=payload.market_location,
+        territory=payload.territory,
+        city=payload.city,
         address=payload.address,
+        shop_photo_url=payload.shop_photo_url,
+        owner_photo_url=payload.owner_photo_url,
         primary_demand_crop=payload.primary_demand_crop
     )
     db.add(new_shop)
@@ -98,9 +110,13 @@ def create_shop(
         shop_name=shop_loaded.shop_name,
         dealer_code=shop_loaded.dealer_code,
         market_location=shop_loaded.market_location,
+        territory=shop_loaded.territory,
+        city=shop_loaded.city,
         address=shop_loaded.address,
         lat=shop_loaded.lat,
         lng=shop_loaded.lng,
+        shop_photo_url=shop_loaded.shop_photo_url,
+        owner_photo_url=shop_loaded.owner_photo_url,
         opening_stock_bags=shop_loaded.opening_stock_bags,
         current_stock_bags=shop_loaded.current_stock_bags,
         primary_demand_crop=shop_loaded.primary_demand_crop,
@@ -132,9 +148,13 @@ def list_shops(
             shop_name=s.shop_name,
             dealer_code=s.dealer_code,
             market_location=s.market_location,
+            territory=s.territory,
+            city=s.city,
             address=s.address,
             lat=s.lat,
             lng=s.lng,
+            shop_photo_url=s.shop_photo_url,
+            owner_photo_url=s.owner_photo_url,
             opening_stock_bags=s.opening_stock_bags,
             current_stock_bags=s.current_stock_bags,
             primary_demand_crop=s.primary_demand_crop,
@@ -162,9 +182,13 @@ def get_my_shop(
         shop_name=shop.shop_name,
         dealer_code=shop.dealer_code,
         market_location=shop.market_location,
+        territory=shop.territory,
+        city=shop.city,
         address=shop.address,
         lat=shop.lat,
         lng=shop.lng,
+        shop_photo_url=shop.shop_photo_url,
+        owner_photo_url=shop.owner_photo_url,
         opening_stock_bags=shop.opening_stock_bags,
         current_stock_bags=shop.current_stock_bags,
         primary_demand_crop=shop.primary_demand_crop,
@@ -198,9 +222,13 @@ def get_shop(
         shop_name=shop.shop_name,
         dealer_code=shop.dealer_code,
         market_location=shop.market_location,
+        territory=shop.territory,
+        city=shop.city,
         address=shop.address,
         lat=shop.lat,
         lng=shop.lng,
+        shop_photo_url=shop.shop_photo_url,
+        owner_photo_url=shop.owner_photo_url,
         opening_stock_bags=shop.opening_stock_bags,
         current_stock_bags=shop.current_stock_bags,
         primary_demand_crop=shop.primary_demand_crop,
@@ -219,16 +247,85 @@ def assign_shop(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(["administrator"]))
 ):
-    from app.models.all_models import FieldExecutive
     shop = db.query(ShopOwner).filter(ShopOwner.id == shop_id).first()
+
     if not shop:
         raise HTTPException(status_code=404, detail="Shop not found")
-        
-    if payload.executive_id is not None:
-        exec_exists = db.query(FieldExecutive).filter(FieldExecutive.id == payload.executive_id).first()
-        if not exec_exists:
-            raise HTTPException(status_code=404, detail="Field Executive not found")
-            
-    shop.assigned_executive_id = payload.executive_id
+
+    # Unassign shop
+    if payload.executive_id is None:
+        shop.assigned_executive_id = None
+        db.commit()
+
+        return {
+            "success": True,
+            "message": "Shop unassigned successfully"
+        }
+
+    # Verify real Field Executive
+    executive = (
+        db.query(FieldExecutive)
+        .filter(FieldExecutive.id == payload.executive_id)
+        .first()
+    )
+
+    if not executive:
+        raise HTTPException(
+            status_code=404,
+            detail="Field Executive not found"
+        )
+
+    # ---------------------------------------------------------
+    # 1. REAL SHOP → FE ASSIGNMENT
+    # ---------------------------------------------------------
+    shop.assigned_executive_id = executive.id
+
+    # ---------------------------------------------------------
+    # 2. CREATE / UPDATE TODAY'S REAL PENDING VISIT
+    # ---------------------------------------------------------
+    today = datetime.utcnow().date()
+
+    today_visits = (
+        db.query(Visit)
+        .filter(
+            Visit.shop_id == shop.id,
+            Visit.scheduled_date >= datetime.combine(today, datetime.min.time()),
+            Visit.scheduled_date < datetime.combine(
+                today,
+                datetime.max.time()
+            )
+        )
+        .all()
+    )
+
+    # Look for an existing Pending visit for this shop today
+    pending_visit = next(
+        (v for v in today_visits if v.status == "Pending"),
+        None
+    )
+
+    if pending_visit:
+        # Reassign the existing Pending visit
+        pending_visit.executive_id = executive.id
+        pending_visit.scheduled_date = datetime.utcnow()
+    else:
+        # Create one real Pending visit
+        pending_visit = Visit(
+            executive_id=executive.id,
+            shop_id=shop.id,
+            purpose="Shop Visit",
+            status="Pending",
+            scheduled_date=datetime.utcnow(),
+        )
+        db.add(pending_visit)
+
     db.commit()
-    return {"success": True, "message": "Shop assigned successfully"}
+    db.refresh(shop)
+
+    return {
+        "success": True,
+        "message": "Shop assigned successfully",
+        "shop_id": shop.id,
+        "executive_id": executive.id,
+        "visit_id": pending_visit.id,
+    }

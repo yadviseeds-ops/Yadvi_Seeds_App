@@ -17,9 +17,9 @@ export const AdminShopOwners: React.FC = () => {
 
   const filteredShops = shops.filter((s) => {
     const matchesSearch =
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.phone.includes(searchTerm);
+      (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.location || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.phone || '').includes(searchTerm);
     const matchesStatus = statusFilter === 'All' || s.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -139,6 +139,9 @@ export const AdminShopOwners: React.FC = () => {
                   <td className="py-3 px-4">
                     <div className="font-bold text-slate-900 text-xs">{shop.name}</div>
                     <div className="text-[10px] text-slate-400">Prop: {shop.ownerName}</div>
+                    {shop.assignedExecutiveName && shop.assignedExecutiveName !== 'Unassigned' && (
+                      <div className="text-[10px] text-emerald-700 font-bold mt-0.5">Assigned FE: {shop.assignedExecutiveName}</div>
+                    )}
                   </td>
                   <td className="py-3 px-4 font-medium text-slate-700">{shop.location}</td>
                   <td className="py-3 px-4 font-mono font-medium text-slate-600">{shop.phone}</td>
@@ -238,8 +241,8 @@ export const AdminShopOwners: React.FC = () => {
                   className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                 >
                   <option value="">Assign to Executive...</option>
-                  {employees.filter(e => e.role === 'Field Sales Officer' || e.role === 'Field Executive').map(e => (
-                    <option key={e.id} value={e.id}>{e.name} ({e.empId})</option>
+                  {employees.filter(e => e.role?.includes('Field') || e.role?.includes('Sales')).map(e => (
+                    <option key={e.id} value={e.id}>{e.name} ({e.empId}) - {e.role}</option>
                   ))}
                 </select>
                 <button

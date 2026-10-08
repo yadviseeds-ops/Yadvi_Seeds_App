@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../services/fe_service.dart';
 import '../../../models/visit_model.dart';
-import '../../../models/order_model.dart';
+import '../visits/visit_details_screen.dart';
 
 class TodaysPlanScreen extends StatefulWidget {
   const TodaysPlanScreen({super.key});
@@ -13,7 +13,6 @@ class TodaysPlanScreen extends StatefulWidget {
 class _TodaysPlanScreenState extends State<TodaysPlanScreen> {
   final _feService = FeService();
   List<VisitModel> _todayVisits = [];
-  List<OrderModel> _orders = [];
   bool _isLoading = true;
   String? _error;
 
@@ -25,11 +24,9 @@ class _TodaysPlanScreenState extends State<TodaysPlanScreen> {
 
   Future<void> _loadData() async {
     try {
-      final results = await Future.wait([_feService.getVisits(), _feService.getMyOrders()]);
-      final allVisits = results[0] as List<VisitModel>;
+      final allVisits = await _feService.getVisits();
       setState(() {
         _todayVisits = allVisits.where((v) => v.isToday).toList();
-        _orders = results[1] as List<OrderModel>;
         _isLoading = false;
       });
     } catch (e) {
@@ -73,8 +70,7 @@ class _TodaysPlanScreenState extends State<TodaysPlanScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
                             _buildCountItem('Total', _todayVisits.length, Colors.white),
-                            _buildCountItem('Done', _todayVisits.where((v) => v.status == 'Completed').length, Colors.green[200]!),
-                            _buildCountItem('Active', _todayVisits.where((v) => v.status == 'In Progress').length, Colors.blue[200]!),
+                            _buildCountItem('Done', _todayVisits.where((v) => v.status == 'Visited').length, Colors.green[200]!),
                             _buildCountItem('Pending', _todayVisits.where((v) => v.status == 'Pending').length, Colors.orange[200]!),
                           ],
                         ),
@@ -99,13 +95,6 @@ class _TodaysPlanScreenState extends State<TodaysPlanScreen> {
                         const SizedBox(height: 12),
                         ..._todayVisits.asMap().entries.map((e) => _buildPlanItem(e.key + 1, e.value)),
                       ],
-
-                      if (_orders.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        const Text('Assigned Orders', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0D4A32))),
-                        const SizedBox(height: 12),
-                        ..._orders.map((o) => _buildOrderItem(o)),
-                      ],
                     ],
                   ),
                 ),
@@ -122,73 +111,53 @@ class _TodaysPlanScreenState extends State<TodaysPlanScreen> {
   }
 
   Widget _buildPlanItem(int seq, VisitModel v) {
-    final Color statusColor = v.status == 'Completed' ? Colors.green : v.status == 'In Progress' ? Colors.blue : Colors.orange;
-    final IconData statusIcon = v.status == 'Completed' ? Icons.check_circle : v.status == 'In Progress' ? Icons.radio_button_checked : Icons.radio_button_unchecked;
+    final Color statusColor = v.status == 'Visited' ? Colors.green : Colors.orange;
+    final IconData statusIcon = v.status == 'Visited' ? Icons.check_circle : Icons.radio_button_unchecked;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(color: const Color(0xFF0D4A32), borderRadius: BorderRadius.circular(8)),
-            child: Center(child: Text('$seq', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+    return GestureDetector(
+      onTap: () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VisitDetailsScreen(visit: v),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(v.shopName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                Text(v.shopLocation, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                Text(v.purpose, style: const TextStyle(color: Colors.teal, fontSize: 11)),
-              ],
+        );
+        if (result == true) {
+          setState(() => _isLoading = true);
+          _loadData();
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(color: const Color(0xFF0D4A32), borderRadius: BorderRadius.circular(8)),
+              child: Center(child: Text('$seq', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
             ),
-          ),
-          Icon(statusIcon, color: statusColor, size: 24),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOrderItem(OrderModel o) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.receipt_long, color: Color(0xFF0D4A32), size: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(o.orderNumber, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace')),
-                Text(o.shopName, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(v.shopName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(v.shopLocation, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text(v.purpose, style: const TextStyle(color: Colors.teal, fontSize: 11)),
+                ],
+              ),
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('${o.totalQuantityBags} Bags', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D4A32))),
-              Text(o.status, style: const TextStyle(fontSize: 11, color: Colors.teal)),
-            ],
-          ),
-        ],
+            Icon(statusIcon, color: statusColor, size: 24),
+          ],
+        ),
       ),
     );
   }

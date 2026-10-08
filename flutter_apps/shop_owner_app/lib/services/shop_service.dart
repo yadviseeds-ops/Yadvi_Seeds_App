@@ -32,6 +32,6 @@ class ShopService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       return Order.fromJson(jsonDecode(response.body));
     }
-    throw Exception('Failed to place order');
+    throw Exception('Failed to place order: ${response.statusCode} - ${response.body}');
   }
 }

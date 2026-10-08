@@ -25,26 +25,20 @@ class FeService {
     throw Exception('Failed to load visits: ${response.statusCode}');
   }
 
-  Future<VisitModel> checkInVisit(int visitId, {String? notes}) async {
-    final response = await _apiClient.post(
-      '/api/v1/visits/$visitId/checkin',
-      {'notes': notes ?? ''},
+  Future<VisitModel> uploadVisitPhoto(int visitId, {required double lat, required double lng, required String photoPath, String? notes}) async {
+    final response = await _apiClient.postMultipart(
+      '/api/v1/visits/$visitId/upload-photo',
+      {
+        'photo_lat': lat.toString(),
+        'photo_lng': lng.toString(),
+        if (notes != null) 'notes': notes,
+      },
+      photoPath,
     );
     if (response.statusCode == 200) {
       return VisitModel.fromJson(jsonDecode(response.body));
     }
-    throw Exception('Check-in failed: ${response.body}');
-  }
-
-  Future<VisitModel> checkOutVisit(int visitId, {String? notes, int bagsOrdered = 0}) async {
-    final response = await _apiClient.post(
-      '/api/v1/visits/$visitId/checkout',
-      {'notes': notes ?? '', 'bags_ordered': bagsOrdered},
-    );
-    if (response.statusCode == 200) {
-      return VisitModel.fromJson(jsonDecode(response.body));
-    }
-    throw Exception('Check-out failed: ${response.body}');
+    throw Exception('Upload failed: ${response.statusCode} - ${response.body}');
   }
 
   Future<List<OrderModel>> getMyOrders() async {
@@ -65,13 +59,14 @@ class FeService {
     throw Exception('Failed to load shipments: ${response.statusCode}');
   }
 
-  Future<void> updateLocation(int employeeId, double lat, double lng, {int? battery}) async {
-    await _apiClient.put(
-      '/api/v1/employees/$employeeId/location',
+  Future<void> updateLocation(double lat, double lng, {double? accuracy, double? speed}) async {
+    await _apiClient.post(
+      '/api/v1/tracking/location',
       {
         'lat': lat,
         'lng': lng,
-        if (battery != null) 'battery_level': battery,
+        if (accuracy != null) 'accuracy': accuracy,
+        if (speed != null) 'speed': speed,
       },
     );
   }

@@ -240,22 +240,23 @@ def _seed_visits(db: Session):
 
     now = datetime.utcnow()
     visits_data = [
-        (executives[0].id, shops[0].id, "Stock Booking & Dealer Audit", "Completed",
-         now.replace(hour=9, minute=0), now.replace(hour=10, minute=30), 25),
+        (executives[0].id, shops[0].id, "Stock Booking & Dealer Audit", "Visited",
+         now.replace(hour=9, minute=0), "https://example.com/photo1.jpg", 16.5, 80.5, 25),
         (executives[0].id, shops[1].id if len(shops) > 1 else shops[0].id,
-         "New Season Demo & Order Collection", "In Progress",
-         now.replace(hour=11, minute=0), None, 0),
+         "New Season Demo & Order Collection", "Pending",
+         None, None, None, None, 0),
         (executives[0].id, shops[2].id if len(shops) > 2 else shops[0].id,
-         "Scheduled Visit & Stock Check", "Pending", None, None, 0),
+         "Scheduled Visit & Stock Check", "Pending", 
+         None, None, None, None, 0),
         (executives[1].id if len(executives) > 1 else executives[0].id,
-         shops[0].id, "Product Demo - YH-222 Okra", "Completed",
-         (now - timedelta(days=1)).replace(hour=10), (now - timedelta(days=1)).replace(hour=11, minute=45), 15),
+         shops[0].id, "Product Demo - YH-222 Okra", "Visited",
+         (now - timedelta(days=1)).replace(hour=10), "https://example.com/photo2.jpg", 16.6, 80.6, 15),
     ]
 
-    for exec_id, shop_id, purpose, status, check_in, check_out, bags in visits_data:
+    for exec_id, shop_id, purpose, status, visited_at, photo_url, p_lat, p_lng, bags in visits_data:
         db.add(Visit(
             executive_id=exec_id, shop_id=shop_id, purpose=purpose, status=status,
-            check_in_time=check_in, check_out_time=check_out, bags_ordered=bags,
+            visited_at=visited_at, visit_photo_url=photo_url, photo_lat=p_lat, photo_lng=p_lng, bags_ordered=bags,
             scheduled_date=now
         ))
     db.commit()

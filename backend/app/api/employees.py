@@ -194,25 +194,31 @@ async def update_location(
         exec_.battery_level = payload.battery_level
     db.commit()
 
-    from app.models.all_models import TrackingSession
-    active_session = db.query(TrackingSession).filter(
-        TrackingSession.executive_id == exec_.id,
-        TrackingSession.status == "Active"
-    ).first()
-
-    if not active_session:
-        # Broadcast WS update async only if not actively tracking to avoid duplicate broadcasts
-        from app.core.websocket import manager
-        try:
-            await manager.broadcast_location_update(
-                employee_id=exec_.id,
-                lat=exec_.current_lat,
-                lng=exec_.current_lng,
-                battery=exec_.battery_level or 100,
-                last_update=now_utc.isoformat()
-            )
-        except Exception as e:
-            import logging
-            logging.error(f"Error broadcasting location: {e}")
+    from app.core.websocket import manager
+    from app.models.all_models import Role, User
+    import json
+    
+    try:
+        admins = db.query(User).join(Role).filter(Role.name == "administrator").all()
+        allowed_user_ids = [admin.id for admin in admins]
+        
+        broadcast_data = {
+            "type": "LOCATION_UPDATE",
+            "data": {
+                "employee_id": exec_.id,
+                "lat": exec_.current_lat,
+                "lng": exec_.current_lng,
+                "battery": exec_.battery_level or 100,
+                "last_update": now_utc.isoformat()
+            }
+        }
+        message_str = json.dumps(broadcast_data)
+        
+        for u_id in set(allowed_user_ids):
+            await manager.send_personal_message(message_str, u_id)
+            
+    except Exception as e:
+        import logging
+        logging.error(f"Error broadcasting location: {e}")
 
     return {"success": True, "lat": exec_.current_lat, "lng": exec_.current_lng}

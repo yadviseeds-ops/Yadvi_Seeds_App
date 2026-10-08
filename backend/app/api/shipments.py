@@ -130,18 +130,47 @@ def get_my_shipments(
     if not exec_:
         return []
 
-    # Get order IDs assigned to this FE
-    assigned_order_ids = [
-        o.id for o in db.query(Order).filter(Order.assigned_executive_id == exec_.id).all()
-    ]
-    if not assigned_order_ids:
+    assigned_orders = (
+        db.query(Order)
+        .options(joinedload(Order.shop).joinedload(ShopOwner.user))
+        .filter(Order.assigned_executive_id == exec_.id)
+        .all()
+    )
+    if not assigned_orders:
         return []
 
+    assigned_order_ids = [o.id for o in assigned_orders]
+    
     shipments = (
         db.query(Shipment)
         .options(joinedload(Shipment.order).joinedload(Order.shop).joinedload(ShopOwner.user))
         .filter(Shipment.order_id.in_(assigned_order_ids))
-        .order_by(Shipment.dispatch_date.desc())
         .all()
     )
-    return [_build_shipment_out(s) for s in shipments]
+    shipment_by_order_id = {s.order_id: s for s in shipments}
+
+    result = []
+    for o in assigned_orders:
+        if o.id in shipment_by_order_id:
+            result.append(_build_shipment_out(shipment_by_order_id[o.id]))
+        else:
+            shop = o.shop
+            result.append(ShipmentOut(
+                id=-o.id,
+                order_id=o.id,
+                order_number=o.order_number,
+                lr_number="Pending",
+                transporter_name="Pending Dispatch",
+                vehicle_number=None,
+                driver_name=None,
+                driver_phone=None,
+                dispatch_date=datetime.utcnow(),
+                estimated_delivery="TBD",
+                status=o.status,
+                current_location=shop.market_location if shop else "Warehouse",
+                shop_name=shop.shop_name if shop else "Unknown",
+                shop_location=shop.market_location if shop else "",
+                total_bags=o.total_quantity_bags,
+            ))
+
+    return sorted(result, key=lambda x: x.dispatch_date, reverse=True)

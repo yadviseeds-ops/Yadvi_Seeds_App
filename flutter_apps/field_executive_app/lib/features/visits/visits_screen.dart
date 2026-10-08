@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../services/fe_service.dart';
 import '../../models/visit_model.dart';
 
@@ -35,6 +38,7 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
       setState(() {
         _visits = visits;
         _isLoading = false;
+        _error = null;
       });
     } catch (e) {
       setState(() {
@@ -44,83 +48,128 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
     }
   }
 
-  Future<void> _performCheckIn(VisitModel visit) async {
-    final notesController = TextEditingController();
-    final confirmed = await showDialog<bool>(
+  Future<void> _performUploadPhoto(VisitModel visit) async {
+    final ImagePicker picker = ImagePicker();
+    
+    // Step 1: Ask for source
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Check In: ${visit.shopName}'),
-        content: TextField(
-          controller: notesController,
-          decoration: const InputDecoration(labelText: 'Notes (optional)', border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D4A32), foregroundColor: Colors.white),
-            child: const Text('Check In'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    try {
-      await _feService.checkInVisit(visit.id, notes: notesController.text);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Checked in at ${visit.shopName}')));
-      _loadVisits();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}')));
-    }
-  }
-
-  Future<void> _performCheckOut(VisitModel visit) async {
-    final notesController = TextEditingController();
-    final bagsController = TextEditingController(text: '0');
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Check Out: ${visit.shopName}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+      builder: (context) => SafeArea(
+        child: Wrap(
           children: [
-            TextField(
-              controller: bagsController,
-              decoration: const InputDecoration(labelText: 'Bags Ordered', border: OutlineInputBorder()),
-              keyboardType: TextInputType.number,
+            const ListTile(
+              title: Text('Choose Photo Source', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: notesController,
-              decoration: const InputDecoration(labelText: 'Visit Notes', border: OutlineInputBorder()),
-              maxLines: 2,
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Take Photo'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Browse Gallery'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700], foregroundColor: Colors.white),
-            child: const Text('Check Out'),
-          ),
-        ],
       ),
     );
-    if (confirmed != true) return;
 
-    try {
-      await _feService.checkOutVisit(
-        visit.id,
-        notes: notesController.text,
-        bagsOrdered: int.tryParse(bagsController.text) ?? 0,
-      );
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Check-out successful!')));
-      _loadVisits();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}')));
-    }
+    if (source == null) return;
+
+    // Step 2: Pick image
+    final XFile? image = await picker.pickImage(source: source, imageQuality: 80);
+    if (image == null) return;
+
+    // Step 3: Show preview
+    final notesController = TextEditingController();
+    bool isUploading = false;
+    
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Visit Proof: ${visit.shopName}'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.file(File(image.path), height: 200, fit: BoxFit.cover),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: notesController,
+                      decoration: const InputDecoration(labelText: 'Notes (optional)', border: OutlineInputBorder()),
+                      maxLines: 2,
+                    ),
+                    if (isUploading) ...[
+                      const SizedBox(height: 20),
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 10),
+                      const Text('Capturing GPS & uploading...'),
+                    ]
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isUploading ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel / Retake'),
+                ),
+                ElevatedButton(
+                  onPressed: isUploading ? null : () async {
+                    setState(() => isUploading = true);
+                    try {
+                      // Get Location
+                      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+                      if (!serviceEnabled) throw Exception('Location services are disabled.');
+
+                      LocationPermission permission = await Geolocator.checkPermission();
+                      if (permission == LocationPermission.denied) {
+                        permission = await Geolocator.requestPermission();
+                        if (permission == LocationPermission.denied) {
+                          throw Exception('Location permissions are denied.');
+                        }
+                      }
+                      
+                      if (permission == LocationPermission.deniedForever) {
+                        throw Exception('Location permissions are permanently denied.');
+                      }
+
+                      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+
+                      // Upload
+                      await _feService.uploadVisitPhoto(
+                        visit.id,
+                        lat: position.latitude,
+                        lng: position.longitude,
+                        photoPath: image.path,
+                        notes: notesController.text,
+                      );
+                      
+                      if (mounted) {
+                        Navigator.pop(dialogContext); // Close dialog
+                        ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text('Visit proof uploaded successfully!')));
+                      }
+                      _loadVisits();
+                    } catch (e) {
+                      setState(() => isUploading = false);
+                      if (mounted) {
+                        ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}')));
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D4A32), foregroundColor: Colors.white),
+                  child: const Text('Submit Visit Proof'),
+                ),
+              ],
+            );
+          }
+        );
+      },
+    );
   }
 
   @override
@@ -189,7 +238,7 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
   }
 
   Widget _buildVisitCard(VisitModel v, {required bool showActions}) {
-    final Color statusColor = v.status == 'Completed' ? Colors.green : v.status == 'In Progress' ? Colors.blue : Colors.orange;
+    final Color statusColor = v.status == 'Visited' ? Colors.green : Colors.orange;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -227,8 +276,8 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
               children: [
                 _buildInfoRow(Icons.location_on, v.shopLocation),
                 _buildInfoRow(Icons.calendar_today, v.scheduledDate.toLocal().toString().substring(0, 16)),
-                if (v.checkInTime != null) _buildInfoRow(Icons.login, 'In: ${v.checkInTime!.toLocal().toString().substring(11, 16)}'),
-                if (v.checkOutTime != null) _buildInfoRow(Icons.logout, 'Out: ${v.checkOutTime!.toLocal().toString().substring(11, 16)}'),
+                if (v.visitedAt != null) _buildInfoRow(Icons.check_circle, 'Visited at: ${v.visitedAt!.toLocal().toString().substring(11, 16)}'),
+                if (v.photoUrl != null) _buildInfoRow(Icons.image, 'Photo Uploaded'),
                 if (v.notes != null && v.notes!.isNotEmpty) _buildInfoRow(Icons.notes, v.notes!),
                 if (v.bagsOrdered > 0) _buildInfoRow(Icons.inventory, '${v.bagsOrdered} Bags Ordered'),
                 if (showActions) ...[
@@ -238,19 +287,10 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
                       if (v.status == 'Pending')
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: () => _performCheckIn(v),
-                            icon: const Icon(Icons.login, size: 16),
-                            label: const Text('Check In'),
+                            onPressed: () => _performUploadPhoto(v),
+                            icon: const Icon(Icons.camera_alt, size: 16),
+                            label: const Text('Upload Photo'),
                             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D4A32), foregroundColor: Colors.white),
-                          ),
-                        ),
-                      if (v.status == 'In Progress')
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => _performCheckOut(v),
-                            icon: const Icon(Icons.logout, size: 16),
-                            label: const Text('Check Out'),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700], foregroundColor: Colors.white),
                           ),
                         ),
                     ],

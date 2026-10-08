@@ -60,21 +60,24 @@ class _EodReportScreenState extends State<EodReportScreen> {
     // EOD uses existing visit/order data — no separate endpoint needed
     setState(() => _isSubmitting = true);
     await Future.delayed(const Duration(seconds: 1)); // simulate submission
+    
+    // STOP DAILY GPS as requested by the workflow
+    _feService.stopDailyGps();
+    
     setState(() {
       _isSubmitting = false;
       _submitted = true;
     });
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('EOD Report submitted successfully!'), backgroundColor: Colors.green),
+        const SnackBar(content: Text('EOD Report submitted successfully! Daily GPS stopped.'), backgroundColor: Colors.green),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final completed = _todayVisits.where((v) => v.status == 'Completed').length;
-    final inProgress = _todayVisits.where((v) => v.status == 'In Progress').length;
+    final completed = _todayVisits.where((v) => v.status == 'Visited').length;
     final pending = _todayVisits.where((v) => v.status == 'Pending').length;
     final totalBags = _todayVisits.fold(0, (sum, v) => sum + v.bagsOrdered);
 
@@ -131,7 +134,6 @@ class _EodReportScreenState extends State<EodReportScreen> {
                       _buildSummaryGrid([
                         _SummaryItem('Total', _todayVisits.length, Icons.store, Colors.teal),
                         _SummaryItem('Completed', completed, Icons.check_circle, Colors.green),
-                        _SummaryItem('In Progress', inProgress, Icons.radio_button_checked, Colors.blue),
                         _SummaryItem('Pending', pending, Icons.access_time, Colors.orange),
                       ]),
                       const SizedBox(height: 16),
@@ -150,7 +152,7 @@ class _EodReportScreenState extends State<EodReportScreen> {
                         const Text('Visit Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0D4A32))),
                         const SizedBox(height: 10),
                         ..._todayVisits.map((v) {
-                          final Color sc = v.status == 'Completed' ? Colors.green : v.status == 'In Progress' ? Colors.blue : Colors.orange;
+                          final Color sc = v.status == 'Visited' ? Colors.green : Colors.orange;
                           return Container(
                             margin: const EdgeInsets.only(bottom: 8),
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

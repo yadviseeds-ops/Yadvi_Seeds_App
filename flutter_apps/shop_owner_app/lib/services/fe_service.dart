@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import '../core/network/api_client.dart';
 import '../models/fe_profile.dart';
 import '../models/visit_model.dart';
@@ -7,6 +10,8 @@ import '../models/shipment_model.dart';
 
 class FeService {
   final ApiClient _apiClient = ApiClient();
+  static Timer? _dailyGpsTimer;
+  static bool _isGpsActive = false;
 
   Future<FeProfile> getMyProfile() async {
     final response = await _apiClient.get('/api/v1/employees/me');
@@ -25,26 +30,20 @@ class FeService {
     throw Exception('Failed to load visits: ${response.statusCode}');
   }
 
-  Future<VisitModel> checkInVisit(int visitId, {String? notes}) async {
-    final response = await _apiClient.post(
-      '/api/v1/visits/$visitId/checkin',
-      {'notes': notes ?? ''},
+  Future<VisitModel> uploadVisitPhoto(int visitId, {required double lat, required double lng, required String photoPath, String? notes}) async {
+    final response = await _apiClient.postMultipart(
+      '/api/v1/visits/$visitId/upload-photo',
+      {
+        'photo_lat': lat.toString(),
+        'photo_lng': lng.toString(),
+        if (notes != null) 'notes': notes,
+      },
+      photoPath,
     );
     if (response.statusCode == 200) {
       return VisitModel.fromJson(jsonDecode(response.body));
     }
-    throw Exception('Check-in failed: ${response.body}');
-  }
-
-  Future<VisitModel> checkOutVisit(int visitId, {String? notes, int bagsOrdered = 0}) async {
-    final response = await _apiClient.post(
-      '/api/v1/visits/$visitId/checkout',
-      {'notes': notes ?? '', 'bags_ordered': bagsOrdered},
-    );
-    if (response.statusCode == 200) {
-      return VisitModel.fromJson(jsonDecode(response.body));
-    }
-    throw Exception('Check-out failed: ${response.body}');
+    throw Exception('Upload failed: ${response.statusCode} - ${response.body}');
   }
 
   Future<List<OrderModel>> getMyOrders() async {
@@ -65,13 +64,14 @@ class FeService {
     throw Exception('Failed to load shipments: ${response.statusCode}');
   }
 
-  Future<void> updateLocation(int employeeId, double lat, double lng, {int? battery}) async {
-    await _apiClient.put(
-      '/api/v1/employees/$employeeId/location',
+  Future<void> updateLocation(double lat, double lng, {double? accuracy, double? speed}) async {
+    await _apiClient.post(
+      '/api/v1/tracking/location',
       {
         'lat': lat,
         'lng': lng,
-        if (battery != null) 'battery_level': battery,
+        if (accuracy != null) 'accuracy': accuracy,
+        if (speed != null) 'speed': speed,
       },
     );
   }
@@ -118,5 +118,41 @@ class FeService {
     if (response.statusCode != 200) {
       throw Exception('Failed to stop tracking: ${response.body}');
     }
+  }
+
+  Future<void> startDailyGps() async {
+    if (_isGpsActive) return;
+    print('Starting FE Daily GPS tracking (Background Service)...');
+    
+    // Request permissions in foreground first
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      print('Location services disabled.');
+      return;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        print('Location permissions denied.');
+        return;
+      }
+    }
+
+    final service = FlutterBackgroundService();
+    bool isRunning = await service.isRunning();
+    if (!isRunning) {
+      await service.startService();
+    }
+    
+    _isGpsActive = true;
+  }
+
+  void stopDailyGps() {
+    print('Stopping FE Daily GPS tracking (Background Service)...');
+    final service = FlutterBackgroundService();
+    service.invoke('stopService');
+    _isGpsActive = false;
   }
 }

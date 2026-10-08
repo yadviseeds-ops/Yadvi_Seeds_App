@@ -8,8 +8,10 @@ class VisitModel {
   final String shopLocation;
   final String purpose;
   final String status;
-  final DateTime? checkInTime;
-  final DateTime? checkOutTime;
+  final DateTime? visitedAt;
+  final String? photoUrl;
+  final double? photoLat;
+  final double? photoLng;
   final String? notes;
   final int bagsOrdered;
   final DateTime scheduledDate;
@@ -24,8 +26,10 @@ class VisitModel {
     required this.shopLocation,
     required this.purpose,
     required this.status,
-    this.checkInTime,
-    this.checkOutTime,
+    this.visitedAt,
+    this.photoUrl,
+    this.photoLat,
+    this.photoLng,
     this.notes,
     required this.bagsOrdered,
     required this.scheduledDate,
@@ -42,8 +46,10 @@ class VisitModel {
       shopLocation: json['shop_location'] ?? '',
       purpose: json['purpose'] ?? '',
       status: json['status'] ?? 'Pending',
-      checkInTime: json['check_in_time'] != null ? DateTime.tryParse(json['check_in_time']) : null,
-      checkOutTime: json['check_out_time'] != null ? DateTime.tryParse(json['check_out_time']) : null,
+      visitedAt: json['visited_at'] != null ? DateTime.tryParse(json['visited_at']) : null,
+      photoUrl: json['photo_url'],
+      photoLat: json['photo_lat'] != null ? (json['photo_lat'] as num).toDouble() : null,
+      photoLng: json['photo_lng'] != null ? (json['photo_lng'] as num).toDouble() : null,
       notes: json['notes'],
       bagsOrdered: json['bags_ordered'] ?? 0,
       scheduledDate: DateTime.tryParse(json['scheduled_date'] ?? '') ?? DateTime.now(),
