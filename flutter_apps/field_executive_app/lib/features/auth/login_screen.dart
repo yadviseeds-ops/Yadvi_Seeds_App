@@ -1,89 +1,190 @@
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_service.dart';
-import '../dashboard/dashboard_screen.dart';
+import 'otp_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String selectedRole;
+  
+  const LoginScreen({super.key, required this.selectedRole});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _mobileController = TextEditingController();
-  final _otpController = TextEditingController();
-  final _authService = AuthService();
-  
-  bool _showOtp = false;
+  final AuthService _authService = AuthService();
   bool _isLoading = false;
-  
-  Future<void> _requestOtp() async {
-    setState(() => _isLoading = true);
-    try {
-      await _authService.requestOtp(_usernameController.text, _mobileController.text);
-      setState(() => _showOtp = true);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('OTP sent successfully')));
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+
+  void _requestOtp() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        debugPrint('AuthService instance / requestOtp started');
+        await _authService.requestOtp(
+          _usernameController.text.trim(),
+          _mobileController.text.trim(),
+        );
+
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OtpScreen(
+                username: _usernameController.text.trim(),
+                mobile: _mobileController.text.trim(),
+                authService: _authService,
+                selectedRole: widget.selectedRole,
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          debugPrint('LOGIN ERROR: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString()),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
-  Future<void> _verifyOtp() async {
-    setState(() => _isLoading = true);
-    try {
-      await _authService.verifyOtp(_usernameController.text, _mobileController.text, _otpController.text);
-      if (mounted) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _mobileController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Field Executive Login', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.teal), textAlign: TextAlign.center),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _usernameController,
-                decoration: const InputDecoration(labelText: 'Username', border: OutlineInputBorder()),
-                enabled: !_showOtp,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(
+                    Icons.agriculture_rounded,
+                    size: 80,
+                    color: Colors.green,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'YADVI SEEDS',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.green,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Login Portal',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                  TextFormField(
+                    controller: _usernameController,
+                    decoration: InputDecoration(
+                      labelText: 'Username / Login ID',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      prefixIcon: const Icon(Icons.person_outline),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your username';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _mobileController,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'Registered Mobile Number',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      prefixIcon: const Icon(Icons.phone_android),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your mobile number';
+                      }
+                      final regex = RegExp(r'^[0-9]{10}$');
+                      if (!regex.hasMatch(value.trim().replaceAll(' ', ''))) {
+                        return 'Please enter a valid 10-digit mobile number';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _requestOtp,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 2,
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'SEND OTP',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _mobileController,
-                decoration: const InputDecoration(labelText: 'Registered Mobile', border: OutlineInputBorder()),
-                keyboardType: TextInputType.phone,
-                enabled: !_showOtp,
-              ),
-              const SizedBox(height: 16),
-              if (_showOtp) ...[
-                TextField(
-                  controller: _otpController,
-                  decoration: const InputDecoration(labelText: 'Enter OTP', border: OutlineInputBorder()),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-              ],
-              ElevatedButton(
-                onPressed: _isLoading ? null : (_showOtp ? _verifyOtp : _requestOtp),
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: Colors.teal, foregroundColor: Colors.white),
-                child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(_showOtp ? 'VERIFY OTP' : 'REQUEST OTP', style: const TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
+            ),
           ),
         ),
       ),

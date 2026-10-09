@@ -4,7 +4,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'firebase_options.dart';
 import 'core/auth/auth_service.dart';
-import 'features/auth/login_screen.dart';
+import 'core/storage/local_storage.dart';
+import 'features/auth/role_selection_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'services/fcm_service.dart';
 
@@ -36,6 +37,7 @@ class _FieldExecutiveAppState extends State<FieldExecutiveApp> {
 
   bool _isLoading = true;
   bool _isAuthenticated = false;
+  String? _userRole;
 
   @override
   void initState() {
@@ -47,11 +49,16 @@ class _FieldExecutiveAppState extends State<FieldExecutiveApp> {
 
   Future<void> _checkAuth() async {
     final authenticated = await _authService.isAuthenticated();
+    String? role;
+    if (authenticated) {
+      role = await LocalStorage.getRole();
+    }
 
     if (!mounted) return;
 
     setState(() {
       _isAuthenticated = authenticated;
+      _userRole = role;
       _isLoading = false;
     });
   }
@@ -75,9 +82,14 @@ class _FieldExecutiveAppState extends State<FieldExecutiveApp> {
           ),
         ),
       )
-          : (_isAuthenticated
-          ? const DashboardScreen()
-          : const LoginScreen()),
+          : (!_isAuthenticated
+          ? const RoleSelectionScreen()
+          : (_userRole == 'field_executive'
+              ? const DashboardScreen()
+              : Scaffold(
+                  appBar: AppBar(title: const Text('Module Not Integrated')),
+                  body: const Center(child: Text('This module will be integrated shortly.')),
+                ))),
       debugShowCheckedModeBanner: false,
     );
   }

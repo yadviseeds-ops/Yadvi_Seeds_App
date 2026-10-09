@@ -3,6 +3,7 @@ import '../../services/fe_service.dart';
 import '../../models/fe_profile.dart';
 import '../../core/auth/auth_service.dart';
 import '../auth/login_screen.dart';
+import '../auth/role_selection_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -59,7 +60,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (confirmed == true) {
       await _authService.logout();
       if (mounted) {
-        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const RoleSelectionScreen()), (route) => false);
       }
     }
   }
