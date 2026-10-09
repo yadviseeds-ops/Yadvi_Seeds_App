@@ -58,17 +58,34 @@ class _EodReportScreenState extends State<EodReportScreen> {
   }
 
   Future<void> _submitEod() async {
-    // EOD uses existing visit/order data — no separate endpoint needed
+    final completed = _todayVisits.where((v) => v.status == 'Visited').length;
+    final pending = _todayVisits.where((v) => v.status == 'Pending').length;
+    final totalBags = _todayVisits.fold(0, (sum, v) => sum + v.bagsOrdered);
+
     setState(() => _isSubmitting = true);
-    await Future.delayed(const Duration(seconds: 1)); // simulate submission
-    setState(() {
-      _isSubmitting = false;
-      _submitted = true;
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('EOD Report submitted successfully!'), backgroundColor: Colors.green),
+    try {
+      await _feService.submitEodReport(
+        completed,
+        pending,
+        totalBags,
+        _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
       );
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _submitted = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('EOD Report submitted successfully!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to submit EOD: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 

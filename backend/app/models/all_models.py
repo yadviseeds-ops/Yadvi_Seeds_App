@@ -241,3 +241,17 @@ class FELocation(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
 
     executive = relationship("FieldExecutive")
+
+class EODReport(Base):
+    __tablename__ = "eod_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    executive_id = Column(Integer, ForeignKey("field_executives.id"), nullable=False)
+    report_date = Column(DateTime, default=datetime.utcnow)
+    completed_visits = Column(Integer, default=0)
+    pending_visits = Column(Integer, default=0)
+    total_bags_ordered = Column(Integer, default=0)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    executive = relationship("FieldExecutive")

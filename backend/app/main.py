@@ -13,6 +13,7 @@ from app.api.shipments import router as shipments_router
 from app.api.dashboard import router as dashboard_router
 from app.api.ws import router as ws_router
 from app.api.tracking import router as tracking_router
+from app.api.eod import router as eod_router
 from app.seed_data import init_db
 from app.core.firebase import init_firebase
 
@@ -51,6 +52,7 @@ app.include_router(shipments_router, prefix=settings.API_V1_STR)
 app.include_router(dashboard_router, prefix=settings.API_V1_STR)
 app.include_router(ws_router, prefix=settings.API_V1_STR)
 app.include_router(tracking_router, prefix=settings.API_V1_STR)
+app.include_router(eod_router, prefix=settings.API_V1_STR)
 
 # Mount Static Files for images (e.g. /seeds/seed_12.jpeg)
 public_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "public")

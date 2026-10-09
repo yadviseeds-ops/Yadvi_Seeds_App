@@ -228,6 +228,11 @@ class ApiService {
   async getShipments(): Promise<any[]> {
     return this.request('/shipments');
   }
+
+  // EOD Reports
+  async getEodReports(): Promise<any[]> {
+    return this.request('/eod');
+  }
 }
 
 export const api = new ApiService();

@@ -61,7 +61,7 @@ interface AppStateContextType {
   removeFromCart: (productId: string) => void;
   updateCartQuantity: (productId: string, quantityBags: number) => void;
   clearCart: () => void;
-  placeOrder: (notes?: string) => Promise<Order>;
+  placeOrder: (notes?: string, itemsToOrder?: CartItem[]) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: OrderStatus, lrNumber?: string, transporter?: string) => Promise<void>;
   assignOrderExecutive: (orderId: string, execId: number) => Promise<void>;
   approveLeave: (leaveId: string) => void;

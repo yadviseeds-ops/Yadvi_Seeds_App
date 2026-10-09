@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useAppState } from '../../context/AppStateContext';
 import { FileBarChart, Download, Calendar, TrendingUp, Package, Building2, Users } from 'lucide-react';
+import { DailyEODReportTab } from './DailyEODReportTab';
 
 export const AdminReports: React.FC = () => {
   const { products, orders, shops, employees } = useAppState();
-  const [activeReportTab, setActiveReportTab] = useState<'orders' | 'shop-owner' | 'employee' | 'stock'>('orders');
+  const [activeReportTab, setActiveReportTab] = useState<'orders' | 'shop-owner' | 'employee' | 'stock' | 'eod'>('orders');
 
   const totalBags = 14850;
   const totalOrders = 348;
@@ -96,37 +97,51 @@ export const AdminReports: React.FC = () => {
         >
           Warehouse Stock Audit Report
         </button>
+        <button
+          onClick={() => setActiveReportTab('eod')}
+          className={`px-3 py-1.5 rounded-xl font-bold transition ${
+            activeReportTab === 'eod'
+              ? 'bg-emerald-800 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Daily EOD Reports
+        </button>
       </div>
+      
+      {activeReportTab === 'eod' ? (
+        <DailyEODReportTab />
+      ) : (
+        <>
+          {/* Top 3 Metric Tiles matching reference screenshot */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Volume Dispatched</div>
+              <div className="text-3xl font-black text-slate-900 mt-1">14,850 <span className="text-base font-bold text-slate-500">Bags</span></div>
+              <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>+14.2% vs last month</span>
+              </div>
+            </div>
 
-      {/* Top 3 Metric Tiles matching reference screenshot */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Volume Dispatched</div>
-          <div className="text-3xl font-black text-slate-900 mt-1">14,850 <span className="text-base font-bold text-slate-500">Bags</span></div>
-          <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>+14.2% vs last month</span>
-          </div>
-        </div>
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Orders Processed</div>
+              <div className="text-3xl font-black text-slate-900 mt-1">348 <span className="text-base font-bold text-slate-500">Orders</span></div>
+              <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>+8.4% vs last month</span>
+              </div>
+            </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Orders Processed</div>
-          <div className="text-3xl font-black text-slate-900 mt-1">348 <span className="text-base font-bold text-slate-500">Orders</span></div>
-          <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>+8.4% vs last month</span>
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Avg Volume Per Order</div>
+              <div className="text-3xl font-black text-slate-900 mt-1">42.6 <span className="text-base font-bold text-slate-500">Bags</span></div>
+              <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>+5.1% vs last month</span>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Avg Volume Per Order</div>
-          <div className="text-3xl font-black text-slate-900 mt-1">42.6 <span className="text-base font-bold text-slate-500">Bags</span></div>
-          <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>+5.1% vs last month</span>
-          </div>
-        </div>
-      </div>
 
       {/* Sales Trend Bar Chart + Top Products List matching reference screenshot */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -191,6 +206,8 @@ export const AdminReports: React.FC = () => {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

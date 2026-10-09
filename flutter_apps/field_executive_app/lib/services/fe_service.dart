@@ -70,4 +70,19 @@ class FeService {
       },
     );
   }
+
+  Future<void> submitEodReport(int completedVisits, int pendingVisits, int totalBagsOrdered, String? notes) async {
+    final response = await _apiClient.post(
+      '/api/v1/eod',
+      {
+        'completed_visits': completedVisits,
+        'pending_visits': pendingVisits,
+        'total_bags_ordered': totalBagsOrdered,
+        if (notes != null) 'notes': notes,
+      },
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception('Failed to submit EOD report: ${response.statusCode} - ${response.body}');
+    }
+  }
 }
