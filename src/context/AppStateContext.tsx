@@ -78,6 +78,9 @@ interface AppStateContextType {
   addShop: (payload: any) => Promise<void>;
   assignShopToExecutive: (shopId: string, execId: string) => Promise<void>;
   addProduct: (payload: any) => Promise<void>;
+  removeEmployee: (id: string | number) => Promise<void>;
+  removeShopOwner: (id: string | number) => Promise<void>;
+  removeProduct: (id: string | number) => Promise<void>;
 }
 
 const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
@@ -809,6 +812,40 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  const removeEmployee = async (id: string | number) => {
+    try {
+      // The id in state is likely formatted as 'emp-X' or a number. We need the numeric ID.
+      const numId = typeof id === 'string' ? parseInt(id.replace('emp-', '')) : id;
+      await api.removeEmployee(numId);
+      setEmployees(prev => prev.filter(e => e.id !== id && e.id !== numId));
+    } catch (err) {
+      console.error('Failed to remove employee:', err);
+      throw err;
+    }
+  };
+
+  const removeShopOwner = async (id: string | number) => {
+    try {
+      const numId = typeof id === 'string' ? parseInt(id.replace('shop-', '')) : id;
+      await api.removeShopOwner(numId);
+      setShops(prev => prev.filter(s => s.id !== id && s.id !== numId));
+    } catch (err) {
+      console.error('Failed to remove shop owner:', err);
+      throw err;
+    }
+  };
+
+  const removeProduct = async (id: string | number) => {
+    try {
+      const numId = typeof id === 'string' ? parseInt(id.replace('prod-', '')) : id;
+      await api.removeProduct(numId);
+      setProducts(prev => prev.filter(p => p.id !== id && p.id !== numId));
+    } catch (err) {
+      console.error('Failed to remove product:', err);
+      throw err;
+    }
+  };
+
   return (
     <AppStateContext.Provider
       value={{
@@ -855,6 +892,9 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         addShop,
         assignShopToExecutive,
         addProduct,
+        removeEmployee,
+        removeShopOwner,
+        removeProduct,
       }}
     >
       {children}

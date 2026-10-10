@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
-import { Calendar, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronUp, FileText, RefreshCw } from 'lucide-react';
 
 interface EODReport {
   id: number;
@@ -17,22 +17,32 @@ interface EODReport {
 export const DailyEODReportTab: React.FC = () => {
   const [reports, setReports] = useState<EODReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedFEs, setExpandedFEs] = useState<Record<string, boolean>>({});
+
+  const parseDateSafe = (dateStr: string) => {
+    const hasTZ = dateStr.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(dateStr);
+    return new Date(hasTZ ? dateStr : `${dateStr}Z`);
+  };
 
   useEffect(() => {
     fetchReports();
   }, []);
 
-  const fetchReports = async () => {
+  const fetchReports = async (isManualRefresh = false) => {
+    if (isManualRefresh) setIsRefreshing(true);
+    else setLoading(true);
+
     try {
-      setLoading(true);
       const data = await api.getEodReports();
       setReports(data);
+      setError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to load EOD reports');
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -51,7 +61,7 @@ export const DailyEODReportTab: React.FC = () => {
   }
   
   const filteredReports = dateFilter 
-    ? reports.filter(r => new Date(r.created_at).toISOString().split('T')[0] === dateFilter)
+    ? reports.filter(r => parseDateSafe(r.created_at).toISOString().split('T')[0] === dateFilter)
     : reports;
 
   // Group by FE Name
@@ -68,12 +78,22 @@ export const DailyEODReportTab: React.FC = () => {
       <div className="mt-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-slate-800">EOD Reports</h3>
-          <input 
-            type="date" 
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm"
-          />
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => fetchReports(true)}
+              disabled={isRefreshing}
+              className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition disabled:opacity-50"
+              title="Refresh Reports"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <input 
+              type="date" 
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm"
+            />
+          </div>
         </div>
         <div className="p-12 text-center flex flex-col items-center justify-center bg-white rounded-2xl border border-slate-200 shadow-sm mt-4">
           <FileText className="w-12 h-12 text-slate-300 mb-3" />
@@ -88,12 +108,22 @@ export const DailyEODReportTab: React.FC = () => {
     <div className="mt-6 space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="font-bold text-slate-800">Submitted EOD Reports</h3>
-        <input 
-          type="date" 
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm"
-        />
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => fetchReports(true)}
+            disabled={isRefreshing}
+            className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition disabled:opacity-50"
+            title="Refresh Reports"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+          <input 
+            type="date" 
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm"
+          />
+        </div>
       </div>
       
       {Object.entries(grouped).map(([feName, feReports]) => (
@@ -126,11 +156,11 @@ export const DailyEODReportTab: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-emerald-600" />
                       <span className="text-sm font-bold text-slate-800">
-                        {new Date(report.created_at).toLocaleDateString('en-GB')}
+                        {parseDateSafe(report.created_at).toLocaleDateString('en-GB')}
                       </span>
                     </div>
                     <span className="text-xs font-mono text-slate-500">
-                      {new Date(report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {parseDateSafe(report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
 

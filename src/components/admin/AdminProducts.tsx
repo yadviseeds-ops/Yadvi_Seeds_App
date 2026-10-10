@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useAppState } from '../../context/AppStateContext';
 import { SeedProduct, PRODUCT_CATEGORIES } from '../../data/seedProducts';
-import { Search, Filter, ShieldCheck, Sprout, Package, Eye, X, CheckCircle2 } from 'lucide-react';
+import { Search, Filter, ShieldCheck, Sprout, Package, Eye, X, CheckCircle2, Upload, Trash2 } from 'lucide-react';
+import { api } from '../../services/api';
 
 export const AdminProducts: React.FC = () => {
-  const { products, addProduct } = useAppState();
+  const { products, addProduct, removeProduct } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All Products');
   const [selectedProduct, setSelectedProduct] = useState<SeedProduct | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isRemoving, setIsRemoving] = useState<string | number | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [addForm, setAddForm] = useState({
     name: '', variety_type: '', sku: '', category: 'Chilli', image_url: 'https://images.unsplash.com/photo-1592652495393-e18e6921b7cb?w=500&q=80', available_stock_bags: 0,
     germination_rate: '85% Min', purity: '98% Min', maturity_days: '', crop_season: '', availability: 'In Stock', description: '',
@@ -122,16 +125,38 @@ export const AdminProducts: React.FC = () => {
                   <span className="text-[10px] text-slate-400 block font-medium">Available Stock</span>
                   <span className="font-bold text-slate-900 font-mono text-sm">{product.stockBags} Bags</span>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedProduct(product);
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold transition flex items-center gap-1"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Specs</span>
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedProduct(product);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold transition flex items-center gap-1"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Specs</span>
+                  </button>
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Are you sure you want to remove ${product.name}?`)) {
+                        setIsRemoving(product.id);
+                        try {
+                          await removeProduct(product.id);
+                        } catch (err) {
+                          alert("Failed to remove product.");
+                        } finally {
+                          setIsRemoving(null);
+                        }
+                      }
+                    }}
+                    disabled={isRemoving === product.id}
+                    className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-800 transition disabled:opacity-50"
+                    title="Remove Product"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -330,9 +355,46 @@ export const AdminProducts: React.FC = () => {
                   <label className="text-[11px] font-bold text-slate-500 uppercase">Package Sizes (comma separated)</label>
                   <input required value={addForm.package_sizes} onChange={e => setAddForm({...addForm, package_sizes: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase">Image URL</label>
-                  <input required value={addForm.image_url} onChange={e => setAddForm({...addForm, image_url: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                <div className="space-y-1 col-span-2">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Product Image</label>
+                  <div className="flex items-center gap-4">
+                    {addForm.image_url && addForm.image_url !== 'https://images.unsplash.com/photo-1592652495393-e18e6921b7cb?w=500&q=80' && (
+                      <div className="relative w-16 h-16 border rounded-lg overflow-hidden">
+                        <img src={addForm.image_url} alt="Preview" className="w-full h-full object-cover" />
+                        <button type="button" onClick={() => setAddForm({...addForm, image_url: 'https://images.unsplash.com/photo-1592652495393-e18e6921b7cb?w=500&q=80'})} className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-bl">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                    <label className="flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer text-xs font-bold text-slate-700 transition">
+                      <Upload className="w-4 h-4" />
+                      {isUploading ? 'Uploading...' : 'Upload Image'}
+                      <input 
+                        type="file" 
+                        accept=".jpg,.jpeg,.png,.webp" 
+                        className="hidden" 
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 5 * 1024 * 1024) {
+                              alert("File size exceeds 5MB limit.");
+                              return;
+                            }
+                            setIsUploading(true);
+                            try {
+                              const res = await api.uploadProductImage(file);
+                              setAddForm({...addForm, image_url: res.image_url});
+                            } catch (err) {
+                              alert("Upload failed.");
+                            } finally {
+                              setIsUploading(false);
+                            }
+                          }
+                        }}
+                        disabled={isUploading}
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
 

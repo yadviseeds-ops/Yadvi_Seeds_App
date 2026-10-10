@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../home/home_screen.dart';
 import '../plan/todays_plan_screen.dart';
 import '../visits/visits_screen.dart';
-import '../location/my_location_screen.dart';
+import '../orders/orders_screen.dart';
 
 import '../eod/eod_report_screen.dart';
 import '../profile/profile_screen.dart';
@@ -34,7 +34,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     const HomeScreen(),
     const TodaysPlanScreen(),
     const VisitsScreen(),
-    const MyLocationScreen(),
+    const OrdersScreen(),
     const EodReportScreen(),
     const ProfileScreen(),
     const HelpSupportScreen(),
@@ -44,7 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
     BottomNavigationBarItem(icon: Icon(Icons.today), label: 'Plan'),
     BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Visits'),
-    BottomNavigationBarItem(icon: Icon(Icons.location_on), label: 'Location'),
+    BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Orders'),
     BottomNavigationBarItem(icon: Icon(Icons.summarize), label: 'EOD'),
     BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
     BottomNavigationBarItem(icon: Icon(Icons.help_outline), label: 'Support'),

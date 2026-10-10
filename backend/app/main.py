@@ -61,6 +61,9 @@ if os.path.exists(public_dir):
     visits_dir = os.path.join(public_dir, "visits")
     os.makedirs(visits_dir, exist_ok=True)
     app.mount("/public/visits", StaticFiles(directory=visits_dir), name="visits")
+    products_dir = os.path.join(public_dir, "products")
+    os.makedirs(products_dir, exist_ok=True)
+    app.mount("/public/products", StaticFiles(directory=products_dir), name="products")
 
 
 @app.on_event("startup")

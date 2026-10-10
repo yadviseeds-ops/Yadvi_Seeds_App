@@ -116,6 +116,8 @@ def list_employees(
     """List all field executives — Admin only."""
     executives = (
         db.query(FieldExecutive)
+        .join(User)
+        .filter(User.is_active == True)
         .options(joinedload(FieldExecutive.user))
         .all()
     )
@@ -140,6 +142,21 @@ def list_employees(
         ))
     return result
 
+
+@router.delete("/{employee_id}")
+def delete_employee(
+    employee_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["administrator"]))
+):
+    """Soft delete field executive — Admin only."""
+    exec_ = db.query(FieldExecutive).filter(FieldExecutive.id == employee_id).first()
+    if not exec_:
+        raise HTTPException(status_code=404, detail="Field executive not found")
+    if exec_.user:
+        exec_.user.is_active = False
+    db.commit()
+    return {"success": True, "detail": "Field executive removed"}
 
 @router.get("/me", response_model=EmployeeOut)
 def get_my_profile(

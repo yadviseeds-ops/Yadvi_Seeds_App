@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Optional
+import os
+import uuid
 from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.security import get_current_user, require_role
@@ -41,6 +43,7 @@ class ProductOut(BaseModel):
     description: Optional[str]
     resistance_traits: Optional[str]
     package_sizes: str
+    is_active: bool
 
     class Config:
         from_attributes = True
@@ -90,7 +93,7 @@ def list_products(
     current_user: User = Depends(get_current_user)
 ):
     """List all products. Accessible to all authenticated roles."""
-    query = db.query(Product)
+    query = db.query(Product).filter(Product.is_active == True)
     if category:
         query = query.filter(Product.category.ilike(f"%{category}%"))
     return query.order_by(Product.category, Product.name).all()
@@ -125,3 +128,51 @@ def update_stock(
     db.commit()
     db.refresh(product)
     return {"success": True, "product_id": product_id, "new_stock": product.available_stock_bags}
+
+
+@router.delete("/{product_id}")
+def delete_product(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["administrator"]))
+):
+    """Soft delete a product — Admin only."""
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    product.is_active = False
+    db.commit()
+    return {"success": True, "detail": "Product removed"}
+
+
+@router.post("/upload-image")
+async def upload_product_image(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_role(["administrator"]))
+):
+    """Upload product image — Admin only."""
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Invalid file type. Only images are allowed.")
+    
+    file_ext = file.filename.split('.')[-1].lower()
+    allowed_exts = ["jpg", "jpeg", "png", "webp"]
+    if file_ext not in allowed_exts:
+        raise HTTPException(status_code=400, detail="Unsupported file format.")
+    
+    # Check size (5MB) - read and reset cursor
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Maximum 5MB.")
+    
+    file.file.seek(0)
+    
+    filename = f"{uuid.uuid4().hex}.{file_ext}"
+    public_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "public")
+    products_dir = os.path.join(public_dir, "products")
+    os.makedirs(products_dir, exist_ok=True)
+    
+    file_path = os.path.join(products_dir, filename)
+    with open(file_path, "wb") as buffer:
+        buffer.write(contents)
+        
+    return {"image_url": f"/public/products/{filename}"}

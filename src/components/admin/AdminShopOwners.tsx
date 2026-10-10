@@ -4,12 +4,13 @@ import { Shop } from '../../data/mockShops';
 import { Building2, Store, Search, Plus, MapPin, Phone, Mail, FileText, CheckCircle2, X } from 'lucide-react';
 
 export const AdminShopOwners: React.FC = () => {
-  const { shops, employees, addShop, assignShopToExecutive } = useAppState();
+  const { shops, employees, addShop, assignShopToExecutive, removeShopOwner } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [assignExecId, setAssignExecId] = useState<string>('');
+  const [isRemoving, setIsRemoving] = useState<string | number | null>(null);
 
   const [addForm, setAddForm] = useState({
     owner_name: '', phone: '', email: '', username: '', shop_name: '', dealer_code: '', market_location: '', address: '', primary_demand_crop: ''
@@ -159,7 +160,7 @@ export const AdminShopOwners: React.FC = () => {
                   <td className="py-3 px-4 text-center font-mono font-bold text-emerald-800">
                     {shop.currentStockBags} Bags
                   </td>
-                  <td className="py-3 px-4 text-right">
+                  <td className="py-3 px-4 text-right space-x-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -168,6 +169,25 @@ export const AdminShopOwners: React.FC = () => {
                       className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs"
                     >
                       Details
+                    </button>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (window.confirm(`Are you sure you want to remove shop owner: ${shop.name}?`)) {
+                          setIsRemoving(shop.id);
+                          try {
+                            await removeShopOwner(shop.id);
+                          } catch (err) {
+                            alert("Failed to remove shop owner.");
+                          } finally {
+                            setIsRemoving(null);
+                          }
+                        }
+                      }}
+                      disabled={isRemoving === shop.id}
+                      className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-800 font-bold text-xs disabled:opacity-50"
+                    >
+                      {isRemoving === shop.id ? 'Removing...' : 'Remove'}
                     </button>
                   </td>
                 </tr>

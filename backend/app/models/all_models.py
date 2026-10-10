@@ -98,6 +98,7 @@ class Product(Base):
     description = Column(Text, nullable=True)
     resistance_traits = Column(String(255), nullable=True)
     package_sizes = Column(String(255), default="100g, 500g, 1kg")  # Comma-separated sizes
+    is_active = Column(Boolean, default=True)
 
     inventory_items = relationship("Inventory", back_populates="product")
     order_items = relationship("OrderItem", back_populates="product")

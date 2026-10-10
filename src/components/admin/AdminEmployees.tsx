@@ -19,10 +19,11 @@ import {
 } from 'lucide-react';
 
 export const AdminEmployees: React.FC = () => {
-  const { employees, addEmployee } = useAppState();
+  const { employees, addEmployee, removeEmployee } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('All');
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [isRemoving, setIsRemoving] = useState<string | number | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   
   // Add Employee Form State
@@ -186,15 +187,34 @@ export const AdminEmployees: React.FC = () => {
                   <td className="py-3 px-4 text-center font-mono font-semibold text-slate-900">
                     {emp.distanceCoveredTodayKm > 0 ? `${emp.distanceCoveredTodayKm} km` : '0 km'}
                   </td>
-                  <td className="py-3 px-4 text-right">
+                  <td className="py-3 px-4 text-right space-x-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedEmployee(emp);
                       }}
-                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+                      className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs"
                     >
-                      <MoreVertical className="w-4 h-4" />
+                      Details
+                    </button>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (window.confirm(`Are you sure you want to remove executive: ${emp.name}?`)) {
+                          setIsRemoving(emp.id);
+                          try {
+                            await removeEmployee(emp.id);
+                          } catch (err) {
+                            alert("Failed to remove executive.");
+                          } finally {
+                            setIsRemoving(null);
+                          }
+                        }
+                      }}
+                      disabled={isRemoving === emp.id}
+                      className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-800 font-bold text-xs disabled:opacity-50"
+                    >
+                      {isRemoving === emp.id ? 'Removing...' : 'Remove'}
                     </button>
                   </td>
                 </tr>

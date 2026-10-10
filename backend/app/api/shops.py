@@ -132,7 +132,7 @@ def list_shops(
     current_user: User = Depends(require_role(["administrator", "field_executive"]))
 ):
     """List shops — Admin sees all, Field Exec sees assigned territory."""
-    query = db.query(ShopOwner).options(joinedload(ShopOwner.user))
+    query = db.query(ShopOwner).options(joinedload(ShopOwner.user)).filter(ShopOwner.status == "Active")
     
     if current_user.role.name == "field_executive":
         exec_profile = current_user.field_profile
@@ -239,6 +239,24 @@ def get_shop(
         assigned_executive_id=shop.assigned_executive_id,
         assigned_executive_name=exec_name
     )
+
+@router.delete("/{shop_id}")
+def delete_shop(
+    shop_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["administrator"]))
+):
+    """Soft delete shop by setting status to Inactive — Admin only."""
+    shop = db.query(ShopOwner).filter(ShopOwner.id == shop_id).first()
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop owner not found")
+    
+    shop.status = "Inactive"
+    if shop.user:
+        shop.user.is_active = False
+    
+    db.commit()
+    return {"success": True, "detail": "Shop owner removed"}
 
 @router.put("/{shop_id}/assign")
 def assign_shop(

@@ -123,6 +123,12 @@ class ApiService {
       body: JSON.stringify(payload),
     });
   }
+
+  async removeEmployee(id: number): Promise<any> {
+    return this.request(`/employees/${id}`, {
+      method: 'DELETE',
+    });
+  }
   
   async updateMyLocation(id: number, lat: number, lng: number, battery?: number): Promise<any> {
     return this.request(`/employees/${id}/location`, {
@@ -169,6 +175,35 @@ class ApiService {
     });
   }
 
+  async removeProduct(id: number): Promise<any> {
+    return this.request(`/products/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async uploadProductImage(file: File): Promise<{ image_url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const token = this.getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/products/upload-image`, {
+      method: 'POST',
+      body: formData,
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP Error ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   // Shops
   async getShops(): Promise<any[]> {
     return this.request('/shops');
@@ -178,6 +213,12 @@ class ApiService {
     return this.request('/shops', {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  }
+
+  async removeShopOwner(id: number): Promise<any> {
+    return this.request(`/shops/${id}`, {
+      method: 'DELETE',
     });
   }
   
