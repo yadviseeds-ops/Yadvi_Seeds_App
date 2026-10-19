@@ -72,7 +72,7 @@ export const AdminShipments: React.FC = () => {
 
                   <div className="font-bold text-xs text-slate-900 mt-1">{s.shopName}</div>
                   <div className="text-[11px] text-slate-500">
-                    Order: <b className="text-slate-700">{s.orderNumber}</b> • {s.totalBags} Bags
+                    Order: <b className="text-slate-700">{s.orderNumber}</b> • {s.totalBags} kg
                   </div>
 
                   <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
@@ -97,7 +97,7 @@ export const AdminShipments: React.FC = () => {
                   </div>
                   <div className="text-2xl font-black font-mono tracking-tight">{selectedShipment.lrNumber}</div>
                   <div className="text-xs text-emerald-100/80 mt-1">
-                    Order Ref: <b>{selectedShipment.orderNumber}</b> • {selectedShipment.totalBags} Seed Bags
+                    Order Ref: <b>{selectedShipment.orderNumber}</b> • {selectedShipment.totalBags} kg Volume
                   </div>
                 </div>
 

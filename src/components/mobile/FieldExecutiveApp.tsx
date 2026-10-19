@@ -47,7 +47,7 @@ export const FieldExecutiveApp: React.FC = () => {
   const [visitPhoto, setVisitPhoto] = useState<string | null>(null);
 
   // Quick order booking states
-  const [orderQuantities, setOrderQuantities] = useState<Record<string, number>>({});
+  const [orderItemsState, setOrderItemsState] = useState<Record<string, { quantity: number; unit: 'g' | 'kg' }>>({});
   const [orderSuccessMsg, setOrderSuccessMsg] = useState('');
   const [eodSubmitted, setEodSubmitted] = useState(false);
   const [eodPayments, setEodPayments] = useState('');
@@ -65,25 +65,28 @@ export const FieldExecutiveApp: React.FC = () => {
 
   const handleCollectOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    const items = products.filter(p => (orderQuantities[p.id] || 0) > 0).map(p => ({
-      product: p,
-      packageSize: 'KG', // Required by requirement: "entered manually in KG"
-      quantityBags: orderQuantities[p.id] // Reusing the field for the KG value
-    }));
+    const items = products
+      .filter(p => (orderItemsState[p.id]?.quantity || 0) > 0)
+      .map(p => ({
+        product: p,
+        packageSize: orderItemsState[p.id]?.unit === 'g' ? 'Grams Pack' : 'Kg Consignment',
+        quantity: orderItemsState[p.id]?.quantity || 0,
+        unit: orderItemsState[p.id]?.unit || 'kg',
+      }));
 
     if (items.length === 0) {
-      alert("Please enter a quantity for at least one product.");
+      alert("Please enter a valid positive quantity (g or kg) for at least one product.");
       return;
     }
 
     try {
       const newOrd = await placeOrder(`Direct field order collected by ${currentExec.name}`, items);
       setOrderSuccessMsg(`Seed Order ${newOrd.orderNumber} placed for ${items.length} varieties!`);
-      setOrderQuantities({});
+      setOrderItemsState({});
       setTimeout(() => setOrderSuccessMsg(''), 4000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to collect order:', err);
-      alert("Failed to place order.");
+      alert(err.message || "Failed to place order.");
     }
   };
 
@@ -286,7 +289,7 @@ export const FieldExecutiveApp: React.FC = () => {
                           </div>
                           <div className="text-[9px] text-slate-600 flex justify-between">
                             <span>Transporter: {s.transporter}</span>
-                            <span>{s.totalBags} Bags</span>
+                            <span>{s.totalBags} kg</span>
                           </div>
                         </div>
                       ))}
@@ -307,7 +310,7 @@ export const FieldExecutiveApp: React.FC = () => {
                     {v.status === 'Visited' && (
                       <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold">
                         <CheckCircle className="w-4 h-4 text-emerald-600" />
-                        <span>Visit Completed ({v.bagsOrdered ? `${v.bagsOrdered} Bags Booked` : 'Audited'})</span>
+                        <span>Visit Completed ({v.quantityBookedKg || v.bagsOrdered ? `${v.quantityBookedKg || v.bagsOrdered} kg Booked` : 'Audited'})</span>
                       </div>
                     )}
                   </div>
@@ -321,7 +324,7 @@ export const FieldExecutiveApp: React.FC = () => {
         {activeNav === 'order' && (
           <div className="p-4 space-y-4">
             <h3 className="font-bold text-sm text-slate-900">Book Seed Order on Field</h3>
-            <p className="text-xs text-slate-500">Collect retailer seed indent with real Yadvi varieties</p>
+            <p className="text-xs text-slate-500">Collect retailer seed indent in grams (g) or kilograms (kg)</p>
 
             {orderSuccessMsg && (
               <div className="p-3 bg-emerald-100 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900">
@@ -330,31 +333,60 @@ export const FieldExecutiveApp: React.FC = () => {
             )}
 
             <form onSubmit={handleCollectOrder} className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4 shadow-xs">
-              {/* Products List for Inline KG Order */}
+              {/* Products List with Grams and Kilograms Selection */}
               <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1 pb-4">
                 {products.map((p) => (
-                  <div key={p.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-3">
-                    <div className="w-14 h-16 bg-white rounded-lg p-1 flex items-center justify-center shrink-0 border border-slate-200">
+                  <div key={p.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                    <div className="w-12 h-14 bg-white rounded-lg p-1 flex items-center justify-center shrink-0 border border-slate-200">
                       <img src={p.image} alt={p.name} className="max-h-full object-contain" />
                     </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-xs text-slate-900 leading-tight">{p.name}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-xs text-slate-900 leading-tight truncate">{p.name}</div>
                       <div className="text-[10px] text-emerald-700 font-mono mt-0.5">SKU: {p.sku}</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">Pack Sizes: {p.packageSizes.join(', ')}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5 truncate">Stock: {p.stockKg} kg</div>
                     </div>
-                    <div className="shrink-0 w-24">
-                      <label className="block text-[10px] font-bold text-slate-700 mb-1 text-center">Qty (KG)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="0"
-                        value={orderQuantities[p.id] || ''}
-                        onChange={(e) => {
-                          const val = Math.max(0, parseInt(e.target.value) || 0);
-                          setOrderQuantities(prev => ({ ...prev, [p.id]: val }));
-                        }}
-                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-mono font-bold text-center text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition"
-                      />
+                    <div className="shrink-0 flex items-center gap-1.5">
+                      <div className="w-16">
+                        <label className="block text-[9px] font-bold text-slate-500 mb-0.5 text-center">Qty</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="0"
+                          value={orderItemsState[p.id]?.quantity || ''}
+                          onChange={(e) => {
+                            const val = Math.max(0, parseFloat(e.target.value) || 0);
+                            setOrderItemsState(prev => ({
+                              ...prev,
+                              [p.id]: {
+                                quantity: val,
+                                unit: prev[p.id]?.unit || 'kg'
+                              }
+                            }));
+                          }}
+                          className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-center text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition"
+                        />
+                      </div>
+                      <div className="w-14">
+                        <label className="block text-[9px] font-bold text-slate-500 mb-0.5 text-center">Unit</label>
+                        <select
+                          value={orderItemsState[p.id]?.unit || 'kg'}
+                          onChange={(e) => {
+                            const u = e.target.value as 'g' | 'kg';
+                            setOrderItemsState(prev => ({
+                              ...prev,
+                              [p.id]: {
+                                quantity: prev[p.id]?.quantity || 0,
+                                unit: u
+                              }
+                            }));
+                          }}
+                          className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-emerald-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition"
+                        >
+                          <option value="kg">kg</option>
+                          <option value="g">g</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 ))}

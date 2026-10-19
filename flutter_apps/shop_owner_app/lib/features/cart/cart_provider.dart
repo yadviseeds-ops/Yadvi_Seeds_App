@@ -4,12 +4,20 @@ import '../../models/product.dart';
 class CartItem {
   final Product product;
   final String packageSize;
-  int quantityBags;
+  double quantity;
+  String unit; // 'g' or 'kg'
 
-  CartItem(
-      {required this.product,
-      required this.packageSize,
-      required this.quantityBags});
+  double get quantityKg => unit.toLowerCase() == 'g' ? quantity / 1000.0 : quantity;
+
+  // Legacy compatibility accessor
+  int get quantityBags => quantityKg.ceil();
+
+  CartItem({
+    required this.product,
+    required this.packageSize,
+    required this.quantity,
+    this.unit = 'kg',
+  });
 }
 
 class CartProvider extends ChangeNotifier {
@@ -17,35 +25,51 @@ class CartProvider extends ChangeNotifier {
 
   List<CartItem> get items => _items;
 
-  int get totalBags => _items.fold(0, (sum, item) => sum + item.quantityBags);
+  double get totalQuantityKg => _items.fold(0.0, (sum, item) => sum + item.quantityKg);
+  int get totalItemsCount => _items.length;
 
-  void addItem(Product product, String packageSize, int quantity) {
+  // Legacy fallback
+  int get totalBags => totalQuantityKg.ceil();
+
+  void addItem(Product product, String packageSize, double quantity, {String unit = 'kg'}) {
     final existing = _items
-        .where(
-            (i) => i.product.id == product.id && i.packageSize == packageSize)
+        .where((i) => i.product.id == product.id && i.packageSize == packageSize && i.unit.toLowerCase() == unit.toLowerCase())
         .firstOrNull;
     if (existing != null) {
-      existing.quantityBags += quantity;
+      existing.quantity += quantity;
     } else {
       _items.add(CartItem(
-          product: product, packageSize: packageSize, quantityBags: quantity));
+        product: product,
+        packageSize: packageSize,
+        quantity: quantity,
+        unit: unit,
+      ));
     }
     notifyListeners();
   }
 
-  void updateQuantity(Product product, String packageSize, int newQuantity) {
+  void updateQuantity(Product product, String packageSize, String unit, double newQuantity) {
     if (newQuantity <= 0) {
-      _items.removeWhere(
-          (i) => i.product.id == product.id && i.packageSize == packageSize);
+      _items.removeWhere((i) =>
+          i.product.id == product.id &&
+          i.packageSize == packageSize &&
+          i.unit.toLowerCase() == unit.toLowerCase());
     } else {
       final existing = _items
-          .where(
-              (i) => i.product.id == product.id && i.packageSize == packageSize)
+          .where((i) =>
+              i.product.id == product.id &&
+              i.packageSize == packageSize &&
+              i.unit.toLowerCase() == unit.toLowerCase())
           .firstOrNull;
       if (existing != null) {
-        existing.quantityBags = newQuantity;
+        existing.quantity = newQuantity;
       }
     }
+    notifyListeners();
+  }
+
+  void removeItem(CartItem item) {
+    _items.remove(item);
     notifyListeners();
   }
 

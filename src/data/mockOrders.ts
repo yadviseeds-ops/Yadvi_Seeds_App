@@ -15,7 +15,8 @@ export interface OrderItem {
   sku: string;
   image: string;
   packageSize: string;
-  quantityBags: number;
+  quantity: number;
+  unit: 'g' | 'kg';
 }
 
 export interface Order {
@@ -29,7 +30,7 @@ export interface Order {
   deliveryAddress: string;
   orderDate: string;
   items: OrderItem[];
-  totalQuantityBags: number;
+  totalQuantityKg: number;
   totalItemsCount: number;
   status: OrderStatus;
   assignedExecutiveId: string;
@@ -61,7 +62,7 @@ export const INITIAL_ORDERS: Order[] = [
         sku: 'YHS-CHL-K5',
         image: '/seeds/seed_12.jpeg',
         packageSize: '100g Pouch',
-        quantityBags: 8
+        quantity: 8, unit: 'kg'
       },
       {
         productId: 'prod-03',
@@ -70,7 +71,7 @@ export const INITIAL_ORDERS: Order[] = [
         sku: 'YHS-OKR-222',
         image: '/seeds/seed_07.jpeg',
         packageSize: '500g Pouch',
-        quantityBags: 6
+        quantity: 6, unit: 'kg'
       },
       {
         productId: 'prod-04',
@@ -79,16 +80,16 @@ export const INITIAL_ORDERS: Order[] = [
         sku: 'YHS-OKR-LEON',
         image: '/seeds/seed_10.jpeg',
         packageSize: '500g Pouch',
-        quantityBags: 4
+        quantity: 4, unit: 'kg'
       },
       {
         productId: 'prod-05',
         productName: 'Lakshmi Research Dolichos',
         varietyType: 'Research Dolichos Bean',
         sku: 'YHS-DOL-LAK',
-        image: '/seeds/seed_02.jpeg',
-        packageSize: '1kg Bag',
-        quantityBags: 4
+        image: '/seeds/seed_04.jpeg',
+        packageSize: '1kg Pack',
+        quantity: 4, unit: 'kg'
       },
       {
         productId: 'prod-06',
@@ -96,11 +97,11 @@ export const INITIAL_ORDERS: Order[] = [
         varietyType: 'High Yielding Pulse Seed',
         sku: 'YHS-PLS-BG01',
         image: '/seeds/seed_01.jpeg',
-        packageSize: '5kg Bag',
-        quantityBags: 3
+        packageSize: '5kg Pack',
+        quantity: 3, unit: 'kg'
       }
     ],
-    totalQuantityBags: 25,
+    totalQuantityKg: 25,
     totalItemsCount: 5,
     status: 'New',
     assignedExecutiveId: 'emp-2',
@@ -125,8 +126,8 @@ export const INITIAL_ORDERS: Order[] = [
         varietyType: 'Single Cross Hybrid Corn',
         sku: 'YHS-CORN-678',
         image: '/seeds/seed_04.jpeg',
-        packageSize: '4kg Bag',
-        quantityBags: 15
+        packageSize: '4kg Pack',
+        quantity: 15, unit: 'kg'
       },
       {
         productId: 'prod-08',
@@ -134,11 +135,11 @@ export const INITIAL_ORDERS: Order[] = [
         varietyType: 'Hybrid Rice Seed',
         sku: 'YHS-RICE-9303',
         image: '/seeds/seed_16.jpeg',
-        packageSize: '10kg Bag',
-        quantityBags: 20
+        packageSize: '10kg Pack',
+        quantity: 20, unit: 'kg'
       }
     ],
-    totalQuantityBags: 35,
+    totalQuantityKg: 35,
     totalItemsCount: 2,
     status: 'In Transit',
     assignedExecutiveId: 'emp-1',
@@ -147,7 +148,7 @@ export const INITIAL_ORDERS: Order[] = [
     transporterName: 'Navata Road Transport',
     dispatchDate: '2026-09-22 11:30 AM',
     expectedDeliveryDate: '2026-09-23',
-    deliveryNotes: 'Handle moisture-proof seed bags with care',
+    deliveryNotes: 'Handle moisture-proof seed packs with care',
     source: 'Field Executive'
   },
   {
@@ -168,7 +169,7 @@ export const INITIAL_ORDERS: Order[] = [
         sku: 'YHS-CHL-K5',
         image: '/seeds/seed_12.jpeg',
         packageSize: '50g Pouch',
-        quantityBags: 12
+        quantity: 12, unit: 'kg'
       },
       {
         productId: 'prod-11',
@@ -177,10 +178,10 @@ export const INITIAL_ORDERS: Order[] = [
         sku: 'YHS-TOM-SW',
         image: '/seeds/seed_28.jpeg',
         packageSize: '50g Pouch',
-        quantityBags: 8
+        quantity: 8, unit: 'kg'
       }
     ],
-    totalQuantityBags: 20,
+    totalQuantityKg: 20,
     totalItemsCount: 2,
     status: 'Packed',
     assignedExecutiveId: 'emp-2',
@@ -209,7 +210,7 @@ export const INITIAL_ORDERS: Order[] = [
         sku: 'YHS-OKR-222',
         image: '/seeds/seed_07.jpeg',
         packageSize: '250g Pouch',
-        quantityBags: 10
+        quantity: 10, unit: 'kg'
       },
       {
         productId: 'prod-06',
@@ -217,11 +218,11 @@ export const INITIAL_ORDERS: Order[] = [
         varietyType: 'High Yielding Pulse Seed',
         sku: 'YHS-PLS-BG01',
         image: '/seeds/seed_01.jpeg',
-        packageSize: '5kg Bag',
-        quantityBags: 15
+        packageSize: '5kg Pack',
+        quantity: 15, unit: 'kg'
       }
     ],
-    totalQuantityBags: 25,
+    totalQuantityKg: 25,
     totalItemsCount: 2,
     status: 'Delivered',
     assignedExecutiveId: 'emp-3',
@@ -250,7 +251,7 @@ export const INITIAL_ORDERS: Order[] = [
         sku: 'YHS-CHL-D27',
         image: '/seeds/seed_21.jpeg',
         packageSize: '100g Pouch',
-        quantityBags: 18
+        quantity: 18, unit: 'kg'
       },
       {
         productId: 'prod-05',
@@ -258,11 +259,11 @@ export const INITIAL_ORDERS: Order[] = [
         varietyType: 'Research Dolichos Bean',
         sku: 'YHS-DOL-LAK',
         image: '/seeds/seed_02.jpeg',
-        packageSize: '5kg Bag',
-        quantityBags: 14
+        packageSize: '5kg Pack',
+        quantity: 14, unit: 'kg'
       }
     ],
-    totalQuantityBags: 32,
+    totalQuantityKg: 32,
     totalItemsCount: 2,
     status: 'Delivered',
     assignedExecutiveId: 'emp-4',

@@ -22,7 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-. e n v 
+. e n v
 # Python cache
 __pycache__/
 *.py[cod]
@@ -43,5 +43,25 @@ flutter_apps/**/.flutter-plugins-dependencies
 flutter_apps/**/.packages
 flutter_apps/**/android/.gradle/
 flutter_apps/**/ios/Pods/
- 
- 
+
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local databases and backups
+*.db
+*.sqlite
+*.sqlite3
+backups/
+backend/backups/
+
+# Local migration state
+backend/migration_checkpoint.json
+
+# Temporary files
+.dockerignore.backup-*
+scratch/
+temp_unified_login.tsx
+
+tools/cloud-sql-proxy/

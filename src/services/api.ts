@@ -69,7 +69,13 @@ class ApiService {
       let errorMessage = `HTTP Error ${response.status}`;
       try {
         const errorData = await response.json();
-        errorMessage = errorData.detail || errorData.message || errorMessage;
+        if (typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        } else if (Array.isArray(errorData.detail)) {
+          errorMessage = errorData.detail.map((d: any) => d.msg || JSON.stringify(d)).join(', ');
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
       } catch (e) {
         // fallback to status text
         errorMessage = response.statusText || errorMessage;
@@ -86,6 +92,39 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ username, mobile }),
     });
+  }
+
+  async loginWithPassword(username: string, password: string): Promise<AuthResponse> {
+    const data = await this.request<AuthResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+    if (data.access_token) {
+      this.setToken(data.access_token);
+    }
+    return data;
+  }
+
+  async verifyUser(username: string, mobile: string): Promise<{status: string, message: string}> {
+    return this.request<{status: string, message: string}>('/auth/verify-user', {
+      method: 'POST',
+      body: JSON.stringify({ username, mobile }),
+    });
+  }
+
+  async loginWithFirebase(username: string, mobile: string, firebaseIdToken: string): Promise<AuthResponse> {
+    const data = await this.request<AuthResponse>('/auth/login-firebase', {
+      method: 'POST',
+      body: JSON.stringify({
+        username,
+        mobile,
+        firebase_id_token: firebaseIdToken
+      }),
+    });
+    if (data.access_token) {
+      this.setToken(data.access_token);
+    }
+    return data;
   }
 
   async verifyOtp(username: string, mobile: string, otp: string): Promise<AuthResponse> {
@@ -116,7 +155,7 @@ class ApiService {
   async getEmployees(): Promise<any[]> {
     return this.request('/employees');
   }
-  
+
   async createEmployee(payload: any): Promise<any> {
     return this.request('/employees', {
       method: 'POST',
@@ -129,7 +168,7 @@ class ApiService {
       method: 'DELETE',
     });
   }
-  
+
   async updateMyLocation(id: number, lat: number, lng: number, battery?: number): Promise<any> {
     return this.request(`/employees/${id}/location`, {
       method: 'PUT',
@@ -141,14 +180,18 @@ class ApiService {
   async getOrders(): Promise<any[]> {
     return this.request('/orders');
   }
-  
+
   async createOrder(payload: any): Promise<any> {
     return this.request('/orders', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   }
-  
+
+  async getOrderById(id: string | number): Promise<any> {
+    return this.request(`/orders/${id}`);
+  }
+
   async updateOrderStatus(id: string | number, payload: any): Promise<any> {
     return this.request(`/orders/${id}/status`, {
       method: 'PUT',
@@ -181,10 +224,17 @@ class ApiService {
     });
   }
 
+  async updateStock(id: number, payload: { available_stock_kg?: number; available_stock_bags?: number; availability?: string }): Promise<any> {
+    return this.request(`/products/${id}/stock`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async uploadProductImage(file: File): Promise<{ image_url: string }> {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const token = this.getToken();
     const headers: Record<string, string> = {};
     if (token) {
@@ -198,7 +248,20 @@ class ApiService {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP Error ${response.status}`);
+      let errorMessage = `Upload failed (HTTP ${response.status})`;
+      try {
+        const errorData = await response.json();
+        if (typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        } else if (Array.isArray(errorData.detail)) {
+          errorMessage = errorData.detail.map((d: any) => d.msg || JSON.stringify(d)).join(', ');
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch (e) {
+        errorMessage = response.statusText || errorMessage;
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json();
@@ -208,10 +271,17 @@ class ApiService {
   async getShops(): Promise<any[]> {
     return this.request('/shops');
   }
-  
+
   async createShop(payload: any): Promise<any> {
     return this.request('/shops', {
       method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateShop(id: number, payload: any): Promise<any> {
+    return this.request(`/shops/${id}`, {
+      method: 'PUT',
       body: JSON.stringify(payload),
     });
   }
@@ -221,7 +291,7 @@ class ApiService {
       method: 'DELETE',
     });
   }
-  
+
   async assignShop(shopId: number, executiveId: number | null): Promise<any> {
     return this.request(`/shops/${shopId}/assign`, {
       method: 'PUT',
@@ -233,14 +303,14 @@ class ApiService {
   async getAttendance(): Promise<any[]> {
     return this.request('/attendance');
   }
-  
+
   async checkIn(location: string): Promise<any> {
     return this.request('/attendance/checkin', {
       method: 'POST',
       body: JSON.stringify({ location }),
     });
   }
-  
+
   async checkOut(distance_covered_km: number): Promise<any> {
     return this.request('/attendance/checkout', {
       method: 'POST',
@@ -252,7 +322,7 @@ class ApiService {
   async getVisits(): Promise<any[]> {
     return this.request('/visits');
   }
-  
+
   async uploadVisitPhoto(visitId: string | number, lat: number, lng: number, photo_url: string, notes?: string): Promise<any> {
     return this.request(`/visits/${visitId}/upload-photo`, {
       method: 'POST',

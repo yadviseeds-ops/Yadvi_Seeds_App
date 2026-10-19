@@ -4,6 +4,8 @@ class OrderItem {
   final String sku;
   final String imageUrl;
   final String packageSize;
+  final double quantity;
+  final String unit;
   final int quantityBags;
 
   OrderItem({
@@ -12,17 +14,29 @@ class OrderItem {
     required this.sku,
     required this.imageUrl,
     required this.packageSize,
-    required this.quantityBags,
+    required this.quantity,
+    this.unit = 'kg',
+    this.quantityBags = 0,
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
+    final qty = (json['quantity'] != null)
+        ? (json['quantity'] as num).toDouble()
+        : ((json['quantity_bags'] as num?)?.toDouble() ?? 0.0);
+    final unitStr = json['unit']?.toString() ?? 'kg';
+    final bags = (json['quantity_bags'] != null)
+        ? (json['quantity_bags'] as num).toInt()
+        : qty.toInt();
+
     return OrderItem(
-      productId: json['product_id'],
+      productId: json['product_id'] ?? 0,
       productName: json['product_name'] ?? '',
       sku: json['sku'] ?? '',
       imageUrl: json['image_url'] ?? '',
       packageSize: json['package_size'] ?? '',
-      quantityBags: json['quantity_bags'] ?? 0,
+      quantity: qty,
+      unit: unitStr,
+      quantityBags: bags,
     );
   }
 }
@@ -33,6 +47,8 @@ class Order {
   final String shopName;
   final String shopLocation;
   final String deliveryAddress;
+  final double totalQuantityKg;
+  final int totalItemsCount;
   final int totalQuantityBags;
   final String status;
   final String? assignedExecutiveName;
@@ -47,7 +63,9 @@ class Order {
     required this.shopName,
     required this.shopLocation,
     required this.deliveryAddress,
-    required this.totalQuantityBags,
+    required this.totalQuantityKg,
+    this.totalItemsCount = 0,
+    this.totalQuantityBags = 0,
     required this.status,
     this.assignedExecutiveName,
     this.lrNumber,
@@ -57,22 +75,32 @@ class Order {
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
+    final itemsList = (json['items'] as List?)
+            ?.map((i) => OrderItem.fromJson(i))
+            .toList() ??
+        [];
+    final totalKg = (json['total_quantity_kg'] != null)
+        ? (json['total_quantity_kg'] as num).toDouble()
+        : ((json['total_quantity_bags'] as num?)?.toDouble() ?? 0.0);
+    final bags = (json['total_quantity_bags'] != null)
+        ? (json['total_quantity_bags'] as num).toInt()
+        : totalKg.toInt();
+
     return Order(
-      id: json['id'],
+      id: json['id'] ?? 0,
       orderNumber: json['order_number'] ?? '',
       shopName: json['shop_name'] ?? '',
       shopLocation: json['shop_location'] ?? '',
       deliveryAddress: json['delivery_address'] ?? '',
-      totalQuantityBags: json['total_quantity_bags'] ?? 0,
+      totalQuantityKg: totalKg,
+      totalItemsCount: json['total_items_count'] ?? itemsList.length,
+      totalQuantityBags: bags,
       status: json['status'] ?? 'New',
       assignedExecutiveName: json['assigned_executive_name'],
       lrNumber: json['lr_number'],
       transporterName: json['transporter_name'],
       createdAt: json['created_at'] ?? '',
-      items: (json['items'] as List?)
-              ?.map((i) => OrderItem.fromJson(i))
-              .toList() ??
-          [],
+      items: itemsList,
     );
   }
 }

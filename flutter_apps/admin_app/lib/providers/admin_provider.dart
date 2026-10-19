@@ -1,0 +1,428 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import '../core/network/api_client.dart';
+import '../models/dashboard_model.dart';
+import '../models/order_model.dart';
+import '../models/product_model.dart';
+import '../models/employee_model.dart';
+import '../models/shop_model.dart';
+import '../models/attendance_model.dart';
+import '../models/visit_model.dart';
+import '../models/shipment_model.dart';
+import '../models/eod_model.dart';
+
+class AdminProvider extends ChangeNotifier {
+  final ApiClient _apiClient = ApiClient();
+
+  // Loading flags
+  bool _isLoadingDashboard = false;
+  bool _isLoadingOrders = false;
+  bool _isLoadingProducts = false;
+  bool _isLoadingEmployees = false;
+  bool _isLoadingShops = false;
+  bool _isLoadingAttendance = false;
+  bool _isLoadingVisits = false;
+  bool _isLoadingShipments = false;
+  bool _isLoadingEod = false;
+
+  // Error messages
+  String? _error;
+
+  // Data state
+  DashboardDataModel? _dashboardData;
+  List<OrderModel> _orders = [];
+  List<ProductModel> _products = [];
+  List<EmployeeModel> _employees = [];
+  List<ShopModel> _shops = [];
+  List<AttendanceModel> _attendance = [];
+  List<VisitModel> _visits = [];
+  List<ShipmentModel> _shipments = [];
+  List<EODReportModel> _eodReports = [];
+
+  // Getters
+  bool get isLoadingDashboard => _isLoadingDashboard;
+  bool get isLoadingOrders => _isLoadingOrders;
+  bool get isLoadingProducts => _isLoadingProducts;
+  bool get isLoadingEmployees => _isLoadingEmployees;
+  bool get isLoadingShops => _isLoadingShops;
+  bool get isLoadingAttendance => _isLoadingAttendance;
+  bool get isLoadingVisits => _isLoadingVisits;
+  bool get isLoadingShipments => _isLoadingShipments;
+  bool get isLoadingEod => _isLoadingEod;
+  String? get error => _error;
+
+  DashboardDataModel? get dashboardData => _dashboardData;
+  List<OrderModel> get orders => _orders;
+  List<ProductModel> get products => _products;
+  List<EmployeeModel> get employees => _employees;
+  List<ShopModel> get shops => _shops;
+  List<AttendanceModel> get attendance => _attendance;
+  List<VisitModel> get visits => _visits;
+  List<ShipmentModel> get shipments => _shipments;
+  List<EODReportModel> get eodReports => _eodReports;
+
+  // 1. Fetch Dashboard
+  Future<void> fetchDashboard() async {
+    _isLoadingDashboard = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final res = await _apiClient.get('/api/v1/dashboard/admin');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        _dashboardData = DashboardDataModel.fromJson(data);
+      } else {
+        _error = 'Failed to load dashboard (${res.statusCode})';
+      }
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      _isLoadingDashboard = false;
+      notifyListeners();
+    }
+  }
+
+  // 2. Orders
+  Future<void> fetchOrders() async {
+    _isLoadingOrders = true;
+    notifyListeners();
+
+    try {
+      final res = await _apiClient.get('/api/v1/orders');
+      if (res.statusCode == 200) {
+        final List data = jsonDecode(res.body);
+        _orders = data.map((item) => OrderModel.fromJson(item)).toList();
+      }
+    } catch (e) {
+      debugPrint('[AdminProvider] Error loading orders: $e');
+    } finally {
+      _isLoadingOrders = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> updateOrderStatus(int orderId, String newStatus, {String? lrNumber, String? transporter}) async {
+    try {
+      final payload = <String, dynamic>{'status': newStatus};
+      if (lrNumber != null) payload['lr_number'] = lrNumber;
+      if (transporter != null) payload['transporter_name'] = transporter;
+
+      final res = await _apiClient.put('/api/v1/orders/$orderId/status', payload);
+      if (res.statusCode == 200) {
+        await fetchOrders();
+        await fetchDashboard();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[AdminProvider] Error updating order status: $e');
+      return false;
+    }
+  }
+
+  Future<bool> assignOrderExecutive(int orderId, int executiveId) async {
+    try {
+      final res = await _apiClient.put('/api/v1/orders/$orderId/assign-executive', {
+        'executive_id': executiveId,
+      });
+      if (res.statusCode == 200) {
+        await fetchOrders();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[AdminProvider] Error assigning order executive: $e');
+      return false;
+    }
+  }
+
+  // 3. Products
+  Future<void> fetchProducts() async {
+    _isLoadingProducts = true;
+    notifyListeners();
+
+    try {
+      final res = await _apiClient.get('/api/v1/products');
+      if (res.statusCode == 200) {
+        final List data = jsonDecode(res.body);
+        _products = data.map((item) => ProductModel.fromJson(item)).toList();
+      }
+    } catch (e) {
+      debugPrint('[AdminProvider] Error loading products: $e');
+    } finally {
+      _isLoadingProducts = false;
+      notifyListeners();
+    }
+  }
+
+  String _extractErrorMessage(http.Response res) {
+    try {
+      final body = jsonDecode(res.body);
+      if (body is Map) {
+        if (body['detail'] != null) {
+          if (body['detail'] is String) return body['detail'];
+          if (body['detail'] is List) {
+            return (body['detail'] as List)
+                .map((e) => e is Map ? (e['msg'] ?? e.toString()) : e.toString())
+                .join(', ');
+          }
+        }
+        if (body['message'] != null) return body['message'].toString();
+      }
+    } catch (_) {}
+    return 'Server error (HTTP ${res.statusCode})';
+  }
+
+  Future<String?> uploadProductImage(List<int> bytes, String filename) async {
+    try {
+      final res = await _apiClient.postMultipartBytes('/api/v1/products/upload-image', bytes, filename);
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final data = jsonDecode(res.body);
+        return data['image_url'] as String?;
+      }
+      debugPrint('[AdminProvider] Upload image failed: ${res.statusCode} ${res.body}');
+      return null;
+    } catch (e) {
+      debugPrint('[AdminProvider] Error uploading product image: $e');
+      return null;
+    }
+  }
+
+  Future<String?> createProductWithResult(Map<String, dynamic> payload) async {
+    try {
+      final res = await _apiClient.post('/api/v1/products', payload);
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        await fetchProducts();
+        await fetchDashboard();
+        return null;
+      }
+      return _extractErrorMessage(res);
+    } catch (e) {
+      debugPrint('[AdminProvider] Error creating product: $e');
+      return e.toString();
+    }
+  }
+
+  Future<String?> updateProductWithResult(int productId, Map<String, dynamic> payload) async {
+    try {
+      final res = await _apiClient.put('/api/v1/products/$productId', payload);
+      if (res.statusCode == 200) {
+        await fetchProducts();
+        await fetchDashboard();
+        return null;
+      }
+      return _extractErrorMessage(res);
+    } catch (e) {
+      debugPrint('[AdminProvider] Error updating product: $e');
+      return e.toString();
+    }
+  }
+
+  Future<bool> createProduct(Map<String, dynamic> payload) async {
+    final err = await createProductWithResult(payload);
+    return err == null;
+  }
+
+  Future<bool> deleteProduct(int productId) async {
+    try {
+      final res = await _apiClient.delete('/api/v1/products/$productId');
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        await fetchProducts();
+        await fetchDashboard();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[AdminProvider] Error deleting product: $e');
+      return false;
+    }
+  }
+
+  // 4. Employees
+  Future<void> fetchEmployees() async {
+    _isLoadingEmployees = true;
+    notifyListeners();
+
+    try {
+      final res = await _apiClient.get('/api/v1/employees');
+      if (res.statusCode == 200) {
+        final List data = jsonDecode(res.body);
+        _employees = data.map((item) => EmployeeModel.fromJson(item)).toList();
+      }
+    } catch (e) {
+      debugPrint('[AdminProvider] Error loading employees: $e');
+    } finally {
+      _isLoadingEmployees = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> createEmployee(Map<String, dynamic> payload) async {
+    try {
+      final res = await _apiClient.post('/api/v1/employees', payload);
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        await fetchEmployees();
+        await fetchDashboard();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[AdminProvider] Error creating employee: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteEmployee(int employeeId) async {
+    try {
+      final res = await _apiClient.delete('/api/v1/employees/$employeeId');
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        await fetchEmployees();
+        await fetchDashboard();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[AdminProvider] Error deleting employee: $e');
+      return false;
+    }
+  }
+
+  // 5. Shops
+  Future<void> fetchShops() async {
+    _isLoadingShops = true;
+    notifyListeners();
+
+    try {
+      final res = await _apiClient.get('/api/v1/shops');
+      if (res.statusCode == 200) {
+        final List data = jsonDecode(res.body);
+        _shops = data.map((item) => ShopModel.fromJson(item)).toList();
+      }
+    } catch (e) {
+      debugPrint('[AdminProvider] Error loading shops: $e');
+    } finally {
+      _isLoadingShops = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> createShop(Map<String, dynamic> payload) async {
+    try {
+      final res = await _apiClient.post('/api/v1/shops', payload);
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        await fetchShops();
+        await fetchDashboard();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[AdminProvider] Error creating shop: $e');
+      return false;
+    }
+  }
+
+  Future<bool> assignShop(int shopId, int? executiveId) async {
+    try {
+      final res = await _apiClient.put('/api/v1/shops/$shopId/assign', {
+        'executive_id': executiveId,
+      });
+      if (res.statusCode == 200) {
+        await fetchShops();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[AdminProvider] Error assigning shop: $e');
+      return false;
+    }
+  }
+
+  // 6. Attendance
+  Future<void> fetchAttendance() async {
+    _isLoadingAttendance = true;
+    notifyListeners();
+
+    try {
+      final res = await _apiClient.get('/api/v1/attendance');
+      if (res.statusCode == 200) {
+        final List data = jsonDecode(res.body);
+        _attendance = data.map((item) => AttendanceModel.fromJson(item)).toList();
+      }
+    } catch (e) {
+      debugPrint('[AdminProvider] Error loading attendance: $e');
+    } finally {
+      _isLoadingAttendance = false;
+      notifyListeners();
+    }
+  }
+
+  // 7. Visits
+  Future<void> fetchVisits() async {
+    _isLoadingVisits = true;
+    notifyListeners();
+
+    try {
+      final res = await _apiClient.get('/api/v1/visits');
+      if (res.statusCode == 200) {
+        final List data = jsonDecode(res.body);
+        _visits = data.map((item) => VisitModel.fromJson(item)).toList();
+      }
+    } catch (e) {
+      debugPrint('[AdminProvider] Error loading visits: $e');
+    } finally {
+      _isLoadingVisits = false;
+      notifyListeners();
+    }
+  }
+
+  // 8. Shipments
+  Future<void> fetchShipments() async {
+    _isLoadingShipments = true;
+    notifyListeners();
+
+    try {
+      final res = await _apiClient.get('/api/v1/shipments');
+      if (res.statusCode == 200) {
+        final List data = jsonDecode(res.body);
+        _shipments = data.map((item) => ShipmentModel.fromJson(item)).toList();
+      }
+    } catch (e) {
+      debugPrint('[AdminProvider] Error loading shipments: $e');
+    } finally {
+      _isLoadingShipments = false;
+      notifyListeners();
+    }
+  }
+
+  // 9. EOD Reports
+  Future<void> fetchEodReports() async {
+    _isLoadingEod = true;
+    notifyListeners();
+
+    try {
+      final res = await _apiClient.get('/api/v1/eod');
+      if (res.statusCode == 200) {
+        final List data = jsonDecode(res.body);
+        _eodReports = data.map((item) => EODReportModel.fromJson(item)).toList();
+      }
+    } catch (e) {
+      debugPrint('[AdminProvider] Error loading EOD reports: $e');
+    } finally {
+      _isLoadingEod = false;
+      notifyListeners();
+    }
+  }
+
+  // Refresh all primary screens
+  Future<void> refreshAll() async {
+    await Future.wait([
+      fetchDashboard(),
+      fetchOrders(),
+      fetchProducts(),
+      fetchEmployees(),
+      fetchShops(),
+    ]);
+  }
+}

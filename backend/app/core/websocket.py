@@ -1,6 +1,8 @@
 import json
 import logging
-from typing import List, Dict, Any
+import time
+import secrets
+from typing import List, Dict, Any, Optional, Tuple
 from fastapi import WebSocket
 
 logger = logging.getLogger("yadvi_websocket")
@@ -53,3 +55,45 @@ class ConnectionManager:
         await self.broadcast(json.dumps(payload))
 
 manager = ConnectionManager()
+
+
+class WebSocketTicketManager:
+    """
+    Manages short-lived (default 60s), single-use connection tickets
+    for WebSocket authentication to prevent bearer JWTs from leaking in URL logs.
+    """
+    def __init__(self, ttl_seconds: int = 60):
+        self.ttl_seconds = ttl_seconds
+        # Maps ticket string to (user_id, expires_at)
+        self._tickets: Dict[str, Tuple[int, float]] = {}
+
+    def issue_ticket(self, user_id: int) -> str:
+        self._purge_expired()
+        ticket = secrets.token_urlsafe(32)
+        expires_at = time.time() + self.ttl_seconds
+        self._tickets[ticket] = (user_id, expires_at)
+        return ticket
+
+    def consume_ticket(self, ticket: str) -> Optional[int]:
+        self._purge_expired()
+        if not ticket or not isinstance(ticket, str):
+            return None
+        record = self._tickets.pop(ticket.strip(), None)
+        if not record:
+            return None
+        user_id, expires_at = record
+        if time.time() > expires_at:
+            return None
+        return user_id
+
+    def _purge_expired(self) -> None:
+        now = time.time()
+        expired_keys = [k for k, (_, exp) in self._tickets.items() if now > exp]
+        for k in expired_keys:
+            self._tickets.pop(k, None)
+
+    def reset_for_testing(self) -> None:
+        self._tickets.clear()
+
+
+ticket_manager = WebSocketTicketManager()

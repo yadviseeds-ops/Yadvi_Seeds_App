@@ -147,7 +147,7 @@ export const AdminOrders: React.FC = () => {
                 <th className="py-3.5 px-4">Order ID & Date</th>
                 <th className="py-3.5 px-4">Shop / Distributor</th>
                 <th className="py-3.5 px-4 text-center">Items</th>
-                <th className="py-3.5 px-4 text-center">Total Bags</th>
+                <th className="py-3.5 px-4 text-center">Total Volume</th>
                 <th className="py-3.5 px-4">Assigned Exec</th>
                 <th className="py-3.5 px-4">LR / Transporter</th>
                 <th className="py-3.5 px-4">Status</th>
@@ -172,7 +172,7 @@ export const AdminOrders: React.FC = () => {
                   <td className="py-3.5 px-4 text-center font-mono font-medium">{ord.totalItemsCount}</td>
                   <td className="py-3.5 px-4 text-center">
                     <span className="font-mono font-black text-slate-900 px-2 py-0.5 bg-slate-100 rounded-md">
-                      {ord.totalQuantityBags} Bags
+                      {ord.totalQuantityKg ?? 0} kg
                     </span>
                   </td>
                   <td className="py-3.5 px-4">
@@ -273,7 +273,7 @@ export const AdminOrders: React.FC = () => {
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-bold text-slate-900 text-sm">Seed Products ({selectedOrder.items.length})</h4>
                   <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">
-                    Total Volume: {selectedOrder.totalQuantityBags} Bags
+                    Total Volume: {selectedOrder.totalQuantityKg ?? 0} kg
                   </span>
                 </div>
 
@@ -297,7 +297,7 @@ export const AdminOrders: React.FC = () => {
 
                       <div className="text-right">
                         <div className="text-[10px] text-slate-400 font-medium">Quantity</div>
-                        <div className="font-mono font-bold text-slate-900 text-sm">{item.quantityBags} Bags</div>
+                        <div className="font-mono font-bold text-slate-900 text-sm">{item.quantity ?? 0} {item.unit || 'kg'}</div>
                       </div>
                     </div>
                   ))}

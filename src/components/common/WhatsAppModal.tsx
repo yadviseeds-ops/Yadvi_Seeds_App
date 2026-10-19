@@ -81,7 +81,7 @@ export const WhatsAppModal: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span className="font-semibold text-slate-600">Total Quantity:</span>
-                <span className="font-bold text-slate-900">{whatsappAlert.totalQuantity} Bags</span>
+                <span className="font-bold text-slate-900">{whatsappAlert.totalQuantity} kg</span>
               </div>
               <div className="flex justify-between pt-1 border-t border-slate-200">
                 <span className="font-semibold text-slate-600">Status:</span>

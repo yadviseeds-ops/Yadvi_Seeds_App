@@ -159,7 +159,7 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
                 if (v.visitedAt != null) _buildInfoRow(Icons.check_circle, 'Visited at: ${v.visitedAt!.toLocal().toString().substring(11, 16)}'),
                 if (v.photoUrl != null) _buildInfoRow(Icons.image, 'Photo Uploaded'),
                 if (v.notes != null && v.notes!.isNotEmpty) _buildInfoRow(Icons.notes, v.notes!),
-                if (v.bagsOrdered > 0) _buildInfoRow(Icons.inventory, '${v.bagsOrdered} Bags Ordered'),
+                if (v.bagsOrdered > 0) _buildInfoRow(Icons.inventory, '${v.bagsOrdered} Orders Booked'),
                 if (showActions) ...[
                   const SizedBox(height: 12),
                   Row(

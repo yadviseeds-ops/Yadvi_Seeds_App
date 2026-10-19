@@ -5,7 +5,8 @@ import { MOCK_SHOPS, Shop } from '../data/mockShops';
 import { INITIAL_ORDERS, Order, OrderStatus, INITIAL_SHIPMENTS, ShipmentTracking } from '../data/mockOrders';
 import { MOCK_VISITS, FieldVisit } from '../data/mockVisits';
 
-import { api, LoginPayload, AuthResponse, API_BASE_URL } from '../services/api';
+import { api, AuthResponse, API_BASE_URL } from '../services/api';
+import { logoutFirebase } from '../services/firebase';
 
 export type UserRole = 'admin' | 'shop_owner' | 'field_executive';
 export type DeviceView = 'desktop' | 'android' | 'ios';
@@ -21,7 +22,8 @@ export interface AuthenticatedUser {
 export interface CartItem {
   product: SeedProduct;
   packageSize: string;
-  quantityBags: number;
+  quantity: number;
+  unit: 'g' | 'kg';
 }
 
 export interface WhatsAppNotification {
@@ -44,6 +46,8 @@ interface AppStateContextType {
   canSwitchRoles: boolean;
   handleRequestOtp: (username: string, mobile: string) => Promise<void>;
   handleVerifyOtp: (username: string, mobile: string, otp: string) => Promise<void>;
+  handleLoginPassword: (username: string, password: string) => Promise<void>;
+  handleLoginFirebase: (username: string, mobile: string, firebaseIdToken: string) => Promise<AuthResponse>;
   handleLogout: () => void;
   isAdminAuthenticated: boolean;
   adminPhone: string;
@@ -57,9 +61,9 @@ interface AppStateContextType {
   visits: FieldVisit[];
   leaves: LeaveRequest[];
   cart: CartItem[];
-  addToCart: (product: SeedProduct, packageSize: string, quantityBags: number) => void;
+  addToCart: (product: SeedProduct, packageSize: string, quantity: number, unit?: 'g' | 'kg') => void;
   removeFromCart: (productId: string) => void;
-  updateCartQuantity: (productId: string, quantityBags: number) => void;
+  updateCartQuantity: (productId: string, quantity: number, unit?: 'g' | 'kg') => void;
   clearCart: () => void;
   placeOrder: (notes?: string, itemsToOrder?: CartItem[]) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: OrderStatus, lrNumber?: string, transporter?: string) => Promise<void>;
@@ -76,7 +80,8 @@ interface AppStateContextType {
   setSelectedOrderForTrack: (order: Order | null) => void;
   addEmployee: (payload: any) => Promise<void>;
   addShop: (payload: any) => Promise<void>;
-  assignShopToExecutive: (shopId: string, execId: string) => Promise<void>;
+  updateShop: (id: string | number, payload: any) => Promise<void>;
+  assignShopToExecutive: (shopId: string, execId: string) => Promise<{ assignedExecutiveId?: string; assignedExecutiveName?: string }>;
   addProduct: (payload: any) => Promise<void>;
   removeEmployee: (id: string | number) => Promise<void>;
   removeShopOwner: (id: string | number) => Promise<void>;
@@ -164,7 +169,69 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const handleLogout = () => {
+  const handleLoginPassword = async (username: string, password: string) => {
+    const response = await api.loginWithPassword(username, password);
+    const mappedRole: UserRole = response.role === 'administrator' ? 'admin' : (response.role as UserRole);
+
+    const userObj: AuthenticatedUser = {
+      id: response.user_id,
+      full_name: response.full_name,
+      role: response.role,
+      metadata: response.metadata,
+    };
+
+    setAuthenticatedUser(userObj);
+    localStorage.setItem('yadvi_auth_user', JSON.stringify(userObj));
+    setIsAuthenticated(true);
+    setIsAdminAuthenticated(response.role === 'administrator');
+    setCurrentRoleState(mappedRole);
+
+    if (mappedRole === 'admin') {
+      setDeviceView('desktop');
+    } else {
+      setDeviceView('android');
+    }
+  };
+
+  const handleLoginFirebase = async (username: string, mobile: string, firebaseIdToken: string): Promise<AuthResponse> => {
+    try {
+      const response = await api.loginWithFirebase(username, mobile, firebaseIdToken);
+
+      // Strict role verification: only administrator may access this portal
+      if (response.role !== 'administrator') {
+        api.removeToken();
+        await logoutFirebase();
+        throw new Error(`Unauthorized role (${response.role}). Administrator privileges are required to access this portal.`);
+      }
+
+      const userObj: AuthenticatedUser = {
+        id: response.user_id,
+        full_name: response.full_name,
+        role: response.role,
+        phone: mobile,
+        metadata: response.metadata,
+      };
+
+      setAuthenticatedUser(userObj);
+      localStorage.setItem('yadvi_auth_user', JSON.stringify(userObj));
+      setIsAuthenticated(true);
+      setIsAdminAuthenticated(true);
+      setCurrentRoleState('admin');
+      setDeviceView('desktop');
+
+      return response;
+    } catch (err) {
+      api.removeToken();
+      localStorage.removeItem('yadvi_auth_user');
+      setIsAuthenticated(false);
+      setAuthenticatedUser(null);
+      setIsAdminAuthenticated(false);
+      await logoutFirebase();
+      throw err;
+    }
+  };
+
+  const handleLogout = async () => {
     api.removeToken();
     localStorage.removeItem('yadvi_auth_user');
     setIsAuthenticated(false);
@@ -172,7 +239,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setIsAdminAuthenticated(false);
     setCurrentRoleState('admin');
     setDeviceView('desktop');
-    
+    await logoutFirebase();
+
     // Explicitly prevent back button navigation to authenticated state
     window.history.pushState(null, '', window.location.href);
     window.onpopstate = function () {
@@ -188,6 +256,13 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [visits, setVisits] = useState<any[]>([]);
   const [leaves, setLeaves] = useState<any[]>(MOCK_LEAVE_REQUESTS);
 
+  const resolveProductImageUrl = (url?: string) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    const baseUrl = API_BASE_URL.replace('/api/v1', '');
+    return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
   // Fetch data from API based on role
   useEffect(() => {
     if (isAuthenticated) {
@@ -199,8 +274,9 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             varietyType: p.variety_type,
             sku: p.sku,
             category: p.category,
-            image: p.image_url,
-            stockBags: p.available_stock_bags,
+            image: resolveProductImageUrl(p.image_url),
+            stockKg: p.available_stock_kg ?? p.available_stock_bags ?? 0,
+            stockBags: p.available_stock_kg ?? p.available_stock_bags ?? 0,
             germinationRate: p.germination_rate,
             purity: p.purity,
             maturityDays: p.maturity_days,
@@ -224,7 +300,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             contactPhone: o.contact_phone,
             deliveryAddress: o.delivery_address,
             orderDate: o.created_at,
-            totalQuantityBags: o.total_quantity_bags,
+            totalQuantityKg: o.total_quantity_kg ?? 0,
             totalItemsCount: o.total_items_count,
             status: o.status,
             source: o.source,
@@ -239,7 +315,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               sku: i.sku,
               image: i.image_url,
               packageSize: i.package_size,
-              quantityBags: i.quantity_bags
+              quantity: i.quantity ?? 0,
+              unit: i.unit || 'kg',
             }))
           })));
         }
@@ -283,32 +360,36 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               status: s.status || 'Active',
               lat: s.lat || 0,
               lng: s.lng || 0,
-              gstin: s.dealer_code || '',
-              seedLicenseNo: s.dealer_code || '',
+              gstin: s.gstin || '',
+              seedLicenseNo: s.seed_license_no || '',
               assignedExecutiveId: s.assigned_executive_id ? String(s.assigned_executive_id) : '',
               assignedExecutiveName: s.assigned_executive_name || 'Unassigned',
               totalOrdersCount: s.total_orders_count || 0,
+              totalKgReceived: s.total_kg_received || s.total_bags_received || 0,
+              pendingDeliveryKg: s.pending_delivery_kg || s.pending_delivery_bags || 0,
               totalBagsReceived: s.total_bags_received || 0,
               pendingDeliveryBags: s.pending_delivery_bags || 0,
               lastVisitDate: s.last_visit_date || '',
-              openingStockBags: s.opening_stock_bags || 0,
-              currentStockBags: s.current_stock_bags || 0,
+              openingStockKg: s.opening_stock_kg ?? s.opening_stock_bags ?? 0,
+              currentStockKg: s.current_stock_kg ?? s.current_stock_bags ?? 0,
+              openingStockBags: s.opening_stock_kg ?? s.opening_stock_bags ?? 0,
+              currentStockBags: s.current_stock_kg ?? s.current_stock_bags ?? 0,
               primaryCropDemand: s.primary_demand_crop || ''
             })));
           }
         }).catch(console.error);
-        
+
         // Connect to WebSocket for live tracking
         const token = localStorage.getItem('yadvi_auth_token');
         if (token && token !== 'null' && token !== 'undefined') {
           const wsBaseUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
           const wsUrl = `${wsBaseUrl}/ws/live-tracking?token=${token}`;
           const ws = new WebSocket(wsUrl);
-          
+
           ws.onopen = () => {
             console.log("Admin connected to live tracking WebSocket.");
           };
-          
+
           ws.onmessage = (event) => {
             try {
               const payload = JSON.parse(event.data);
@@ -343,11 +424,11 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               console.error("Error parsing WebSocket message:", err);
             }
           };
-          
+
           ws.onclose = () => {
             console.log("Live tracking WebSocket closed.");
           };
-          
+
           // We will clean this up later in the useEffect
           (window as any).yadviWs = ws;
         }
@@ -379,7 +460,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               status: v.status,
               visitedAt: sanitizeDate(v.visited_at),
               notes: v.notes,
-              bagsOrdered: v.bags_ordered,
+              quantityBookedKg: v.quantity_booked_kg ?? v.bags_ordered ?? 0,
+              bagsOrdered: v.quantity_booked_kg ?? v.bags_ordered ?? 0,
               photoUrl: v.photo_url ? (v.photo_url.startsWith('http') ? v.photo_url : `${API_BASE_URL.replace('/api/v1', '')}${v.photo_url}`) : undefined,
               photoLat: v.photo_lat,
               photoLng: v.photo_lng,
@@ -412,6 +494,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               dispatchDate: s.dispatch_date,
               estimatedDelivery: s.estimated_delivery,
               status: s.status,
+              totalKg: s.total_bags || 0,
               totalBags: s.total_bags || 0,
               timeline: [] // We can populate timeline if backend provides it
             })));
@@ -431,12 +514,14 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     {
       product: SEED_PRODUCTS[0], // Krishna-5 Chilli
       packageSize: '100g Pouch',
-      quantityBags: 5,
+      quantity: 5,
+      unit: 'kg',
     },
     {
-      product: SEED_PRODUCTS[2], // YH-222 Okra
+      product: SEED_PRODUCTS[1], // YH-222 Okra
       packageSize: '500g Pouch',
-      quantityBags: 10,
+      quantity: 10,
+      unit: 'kg',
     }
   ]);
 
@@ -477,17 +562,18 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setIsAdminAuthenticated(false);
   };
 
-  const addToCart = (product: SeedProduct, packageSize: string, quantityBags: number) => {
+  const addToCart = (product: SeedProduct, packageSize: string, quantity: number, unit: 'g' | 'kg' = 'kg') => {
+    if (quantity <= 0) return;
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
+      const existing = prev.find((item) => item.product.id === product.id && item.unit === unit);
       if (existing) {
         return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantityBags: item.quantityBags + quantityBags, packageSize }
+          item.product.id === product.id && item.unit === unit
+            ? { ...item, quantity: item.quantity + quantity, packageSize }
             : item
         );
       }
-      return [...prev, { product, packageSize, quantityBags }];
+      return [...prev, { product, packageSize, quantity, unit }];
     });
   };
 
@@ -495,14 +581,18 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setCart((prev) => prev.filter((item) => item.product.id !== productId));
   };
 
-  const updateCartQuantity = (productId: string, quantityBags: number) => {
-    if (quantityBags <= 0) {
+  const updateCartQuantity = (productId: string, quantity: number, unit?: 'g' | 'kg') => {
+    if (quantity <= 0) {
       removeFromCart(productId);
       return;
     }
     setCart((prev) =>
       prev.map((item) =>
-        item.product.id === productId ? { ...item, quantityBags } : item
+        item.product.id === productId ? {
+          ...item,
+          quantity,
+          unit: unit || item.unit,
+        } : item
       )
     );
   };
@@ -513,17 +603,24 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const placeOrder = async (notes?: string, itemsToOrder?: CartItem[]): Promise<Order> => {
     const targetItems = itemsToOrder || cart;
-    const totalBags = targetItems.reduce((sum, item) => sum + item.quantityBags, 0);
 
     if (targetItems.length === 0) {
       throw new Error("Cannot place an order with 0 items.");
     }
 
+    // Verify all quantities are positive
+    for (const item of targetItems) {
+      if (!item.quantity || item.quantity <= 0) {
+        throw new Error(`Quantity for ${item.product.name} must be greater than zero.`);
+      }
+    }
+
     const payload = {
       items: targetItems.map(item => ({
-        product_id: parseInt(item.product.id.replace('prod-', '')), // Assuming ID format or handle string to int mapping properly, wait! The backend expects integer IDs for products!
+        product_id: parseInt(item.product.id.replace('prod-', '')),
         package_size: item.packageSize,
-        quantity_bags: item.quantityBags
+        quantity: item.quantity,
+        unit: item.unit || 'kg',
       })),
       delivery_notes: notes || 'Standard consignment delivery',
       source: currentRole === 'shop_owner' ? 'Shop Owner App' : 'Field Executive'
@@ -532,6 +629,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const response = await api.createOrder(payload);
 
+      const totalKg = response.total_quantity_kg ?? 0;
       const newOrder: Order = {
         id: String(response.id),
         orderNumber: response.order_number,
@@ -541,7 +639,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ownerName: response.owner_name,
         contactPhone: response.contact_phone,
         deliveryAddress: response.delivery_address,
-        orderDate: new Date(response.created_at).toLocaleDateString(),
+        orderDate: response.created_at,
         items: response.items.map((item: any) => ({
           productId: String(item.product_id),
           productName: item.product_name,
@@ -549,27 +647,27 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           sku: item.sku,
           image: item.image_url,
           packageSize: item.package_size,
-          quantityBags: item.quantity_bags
+          quantity: item.quantity ?? 0,
+          unit: item.unit || 'kg',
         })),
-        totalQuantityBags: response.total_quantity_bags,
+        totalQuantityKg: totalKg,
         totalItemsCount: response.total_items_count,
         status: response.status,
         source: response.source,
         deliveryNotes: response.delivery_notes,
-        assignedExecutiveId: 'emp-2', // fallback or actual from response
+        assignedExecutiveId: 'emp-2',
         assignedExecutiveName: response.assigned_executive_name || 'Unassigned',
       };
 
       setOrders((prev) => [newOrder, ...prev]);
       clearCart();
 
-      // Trigger exact simulated WhatsApp notification matching uploaded reference Image 3!
       const alertData: WhatsAppNotification = {
         show: true,
         orderNumber: newOrder.orderNumber,
         shopName: newOrder.shopName,
         itemsCount: newOrder.totalItemsCount,
-        totalQuantity: newOrder.totalQuantityBags,
+        totalQuantity: newOrder.totalQuantityKg,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         status: 'New',
       };
@@ -718,13 +816,13 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         id: `emp-${newEmp.id}`,
         name: newEmp.full_name,
         empId: newEmp.employee_code,
-        role: newEmp.designation,
-        location: newEmp.assigned_territory,
+        role: newEmp.designation || 'Field Sales Officer',
+        location: newEmp.assigned_territory || 'Unassigned',
         status: newEmp.is_active ? 'Active' : 'Inactive',
         attendanceStatus: 'Present',
         distanceCoveredTodayKm: 0,
         phone: newEmp.phone,
-        email: newEmp.email,
+        email: newEmp.email || '',
         batteryLevel: 100,
         lastLocationUpdate: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         lat: 16.5,
@@ -747,11 +845,12 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         name: newShopApi.shop_name,
         ownerName: newShopApi.owner_name,
         phone: newShopApi.phone,
-        location: newShopApi.market_location,
+        email: newShopApi.email || '',
+        location: newShopApi.market_location || 'Unspecified',
         address: newShopApi.address,
-        status: newShopApi.status,
-        openingStockBags: newShopApi.opening_stock_bags,
-        currentStockBags: newShopApi.current_stock_bags,
+        status: newShopApi.status || 'Active',
+        openingStockBags: newShopApi.opening_stock_bags || 0,
+        currentStockBags: newShopApi.current_stock_bags || 0,
         primaryCropDemand: newShopApi.primary_demand_crop || 'Mixed',
         lat: newShopApi.lat || 16.5062,
         lng: newShopApi.lng || 80.6480,
@@ -763,21 +862,55 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  const updateShop = async (id: string | number, payload: any) => {
+    try {
+      const numericId = typeof id === 'string' ? parseInt(id.replace('shop-', ''), 10) : id;
+      const updatedShopApi = await api.updateShop(numericId, payload);
+      setShops(prev => prev.map(s => {
+        if (s.id === String(id) || s.id === `shop-${numericId}` || s.id === String(numericId)) {
+          return {
+            ...s,
+            name: updatedShopApi.shop_name || s.name,
+            ownerName: updatedShopApi.owner_name || s.ownerName,
+            phone: updatedShopApi.phone || s.phone,
+            email: updatedShopApi.email || s.email,
+            location: updatedShopApi.market_location || s.location,
+            address: updatedShopApi.address || s.address,
+            primaryCropDemand: updatedShopApi.primary_demand_crop || s.primaryCropDemand,
+            status: updatedShopApi.status || s.status,
+          };
+        }
+        return s;
+      }));
+    } catch (err) {
+      console.error('Failed to update shop:', err);
+      throw err;
+    }
+  };
+
   const assignShopToExecutive = async (shopId: string, execId: string) => {
     try {
       const numericShopId = parseInt(shopId.replace('shop-', ''), 10) || parseInt(shopId, 10);
-      const numericExecId = parseInt(execId.replace('emp-', ''), 10) || parseInt(execId, 10);
-      await api.assignShop(numericShopId, numericExecId);
-      
-      // Update local state so UI refreshes immediately
-      const exec = employees.find(e => e.id === String(numericExecId) || e.id === execId);
-      if (exec) {
-        setShops(prev => prev.map(s => 
-          s.id === shopId || s.id === String(numericShopId) 
-            ? { ...s, assignedExecutiveId: exec.id, assignedExecutiveName: exec.name } 
-            : s
-        ));
+      const isUnassign = !execId || execId === 'unassign' || execId === '';
+      const numericExecId = isUnassign ? null : (parseInt(execId.replace('emp-', ''), 10) || parseInt(execId, 10));
+      const res = await api.assignShop(numericShopId, numericExecId);
+
+      let assignedId: string = '';
+      let assignedName: string = 'Unassigned';
+
+      if (numericExecId) {
+        const exec = employees.find(e => e.id === String(numericExecId) || e.id === execId);
+        assignedId = String(numericExecId);
+        assignedName = res?.assigned_executive_name || exec?.name || 'Assigned';
       }
+
+      setShops(prev => prev.map(s =>
+        s.id === shopId || s.id === String(numericShopId)
+          ? { ...s, assignedExecutiveId: assignedId, assignedExecutiveName: assignedName }
+          : s
+      ));
+
+      return { assignedExecutiveId: assignedId, assignedExecutiveName: assignedName };
     } catch (err) {
       console.error('Failed to assign shop:', err);
       throw err;
@@ -793,17 +926,17 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         varietyType: newProd.variety_type,
         sku: newProd.sku,
         category: newProd.category,
-        image: newProd.image_url,
-        stockBags: newProd.available_stock_bags,
-        germinationRate: newProd.germination_rate,
-        purity: newProd.purity,
+        stockKg: newProd.available_stock_kg ?? newProd.available_stock_bags ?? 0,
+        stockBags: newProd.available_stock_kg ?? newProd.available_stock_bags ?? 0,
+        germinationRate: newProd.germination_rate || '85% Min',
+        purity: newProd.purity || '98% Min',
         maturityDays: newProd.maturity_days || 'N/A',
         cropSeason: newProd.crop_season || 'All Season',
-        availability: newProd.availability,
+        availability: newProd.availability || 'In Stock',
         description: newProd.description || '',
         keyFeatures: ['High Yield'],
-        resistance: 'General',
-        packageSizes: newProd.package_sizes.split(',').map((s: string) => s.trim())
+        resistance: newProd.resistance_traits || 'General',
+        packageSizes: newProd.package_sizes ? newProd.package_sizes.split(',').map((s: string) => s.trim()) : ['100g', '500g', '1kg']
       };
       setProducts(prev => [mappedProd as SeedProduct, ...prev]);
     } catch (err) {
@@ -858,6 +991,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         canSwitchRoles,
         handleRequestOtp,
         handleVerifyOtp,
+        handleLoginPassword,
+        handleLoginFirebase,
         handleLogout,
         isAdminAuthenticated,
         adminPhone,
@@ -890,6 +1025,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setSelectedOrderForTrack,
         addEmployee,
         addShop,
+        updateShop,
         assignShopToExecutive,
         addProduct,
         removeEmployee,

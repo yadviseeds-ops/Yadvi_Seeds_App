@@ -5,6 +5,7 @@ class Product {
   final String sku;
   final String category;
   final String imageUrl;
+  final double availableStockKg;
   final int availableStockBags;
   final String germinationRate;
   final String purity;
@@ -21,17 +22,25 @@ class Product {
     required this.sku,
     required this.category,
     required this.imageUrl,
-    required this.availableStockBags,
-    required this.germinationRate,
-    required this.purity,
-    required this.maturityDays,
-    required this.cropSeason,
-    required this.availability,
-    required this.description,
-    required this.packageSizes,
+    required this.availableStockKg,
+    this.availableStockBags = 0,
+    this.germinationRate = '',
+    this.purity = '',
+    this.maturityDays = '',
+    this.cropSeason = '',
+    this.availability = 'In Stock',
+    this.description = '',
+    this.packageSizes = const [],
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    final stockKg = (json['available_stock_kg'] != null)
+        ? (json['available_stock_kg'] as num).toDouble()
+        : ((json['available_stock_bags'] as num?)?.toDouble() ?? 0.0);
+    final stockBags = (json['available_stock_bags'] != null)
+        ? (json['available_stock_bags'] as num).toInt()
+        : stockKg.toInt();
+
     return Product(
       id: json['id'],
       name: json['name'] ?? '',
@@ -39,7 +48,8 @@ class Product {
       sku: json['sku'] ?? '',
       category: json['category'] ?? '',
       imageUrl: json['image_url'] ?? '',
-      availableStockBags: json['available_stock_bags'] ?? 0,
+      availableStockKg: stockKg,
+      availableStockBags: stockBags,
       germinationRate: json['germination_rate'] ?? '',
       purity: json['purity'] ?? '',
       maturityDays: json['maturity_days'] ?? '',

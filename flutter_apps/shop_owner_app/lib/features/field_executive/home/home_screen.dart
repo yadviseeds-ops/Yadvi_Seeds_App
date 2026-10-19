@@ -284,7 +284,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          Text('${o.totalQuantityBags} Bags', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D4A32))),
+          Text('${o.totalQuantityKg.toStringAsFixed(o.totalQuantityKg.truncateToDouble() == o.totalQuantityKg ? 0 : 2)} kg', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D4A32))),
         ],
       ),
     );

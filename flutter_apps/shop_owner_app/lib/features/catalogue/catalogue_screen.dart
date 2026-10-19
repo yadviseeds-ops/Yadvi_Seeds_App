@@ -223,7 +223,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                               children: [
                                                 Text(
-                                                  'Stock: ${p.availableStockBags} Bags',
+                                                  'Stock: ${p.availableStockKg.toStringAsFixed(p.availableStockKg.truncateToDouble() == p.availableStockKg ? 0 : 2)} kg',
                                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
                                                 ),
                                                 ElevatedButton.icon(

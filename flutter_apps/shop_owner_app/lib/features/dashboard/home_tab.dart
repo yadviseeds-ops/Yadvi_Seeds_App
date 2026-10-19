@@ -79,7 +79,7 @@ class _HomeTabState extends State<HomeTab> {
                     ),
                   ),
                   Text(
-                    'Dealer Code: YHS-GNT-104',
+                    'Authorized Dealer Partner',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.white70,
@@ -285,7 +285,7 @@ class _HomeTabState extends State<HomeTab> {
 
   Widget _buildCurrentConsignments() {
     final activeOrders = _orders.where((o) => o.status != 'Delivered' && o.status != 'Cancelled').toList();
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -349,8 +349,8 @@ class _HomeTabState extends State<HomeTab> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        order.lrNumber != null && order.lrNumber!.isNotEmpty 
-                            ? 'LR-${order.lrNumber}' 
+                        order.lrNumber != null && order.lrNumber!.isNotEmpty
+                            ? 'LR-${order.lrNumber}'
                             : 'Order #${order.id}',
                         style: const TextStyle(
                           color: Color(0xFF166534),

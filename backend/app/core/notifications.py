@@ -14,14 +14,14 @@ class OfficialWhatsAppProvider(WhatsAppProviderInterface):
         self.api_url = os.getenv("WHATSAPP_API_URL")
         self.api_token = os.getenv("WHATSAPP_API_TOKEN")
         self.phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
-        
+
         self.is_configured = all([self.api_url, self.api_token, self.phone_number_id])
-        
+
     def send_template_message(self, phone: str, template_name: str, parameters: dict) -> bool:
         if not self.is_configured:
             logger.warning(f"PENDING CONFIGURATION: WhatsApp credentials not configured. Skipping WhatsApp message to {phone}.")
             return False
-            
+
         logger.info(f"Sending WhatsApp template {template_name} to {phone}")
         # Real integration would use requests.post here
         return True
@@ -30,7 +30,7 @@ class FCMNotificationProvider:
     def __init__(self):
         import firebase_admin
         from firebase_admin import credentials
-        
+
         # Check if already initialized to avoid errors on reload
         if not firebase_admin._apps:
             # We look for a credentials JSON path in env var
@@ -48,9 +48,9 @@ class FCMNotificationProvider:
         if not self.is_configured:
             logger.warning("PENDING CONFIGURATION: FCM credentials not configured. Skipping push notification.")
             return False
-            
+
         from firebase_admin import messaging
-        
+
         try:
             message = messaging.Message(
                 notification=messaging.Notification(
@@ -72,21 +72,22 @@ class NotificationService:
         self.db = db
         self.whatsapp_provider = OfficialWhatsAppProvider()
         self.fcm_provider = FCMNotificationProvider()
-        
+
     def notify_admin_new_order(self, order, admin_user: User):
         # 1. Save notification to DB
-        content = f"New YADVI Order\n\nOrder Number: {order.order_number}\nShop: {order.shop.shop_name if order.shop else 'N/A'}\nTotal Quantity: {order.total_quantity_bags} bags\n\nPlease review and assign a Field Executive."
+        total_display_kg = getattr(order, 'total_quantity_kg', None) or getattr(order, 'total_quantity_bags', 0)
+        content = f"New YADVI Order\n\nOrder Number: {order.order_number}\nShop: {order.shop.shop_name if order.shop else 'N/A'}\nTotal Quantity: {total_display_kg} kg\n\nPlease review and assign a Field Executive."
         db_notif = Notification(
             recipient_phone=admin_user.phone,
             channel="WhatsApp",
             order_number=order.order_number,
             shop_name=order.shop.shop_name if order.shop else 'N/A',
-            total_bags=order.total_quantity_bags,
+            total_bags=int(total_display_kg),
             message_content=content
         )
         self.db.add(db_notif)
         self.db.commit()
-        
+
         # 2. Try sending WhatsApp
         self.whatsapp_provider.send_template_message(
             phone=admin_user.phone,
@@ -94,7 +95,7 @@ class NotificationService:
             parameters={
                 "order_number": order.order_number,
                 "shop_name": order.shop.shop_name if order.shop else 'N/A',
-                "quantity": order.total_quantity_bags
+                "quantity": f"{total_display_kg} kg"
             }
         )
 
@@ -111,7 +112,7 @@ class NotificationService:
         )
         self.db.add(db_notif)
         self.db.commit()
-        
+
         # 2. Push notification via FCM
         if fe_user.fcm_tokens:
             for token_obj in fe_user.fcm_tokens:
@@ -135,7 +136,7 @@ class NotificationService:
         )
         self.db.add(db_notif)
         self.db.commit()
-        
+
         if shop_user.fcm_tokens:
             for token_obj in shop_user.fcm_tokens:
                 if token_obj.is_active:

@@ -17,23 +17,23 @@ class EmployeeCreate(BaseModel):
     username: str
     employee_code: str
     designation: str = "Field Sales Officer"
-    assigned_territory: str
+    assigned_territory: Optional[str] = ""
 
 class EmployeeOut(BaseModel):
     id: int
     user_id: int
     employee_code: str
-    designation: str
-    assigned_territory: str
-    current_lat: Optional[float]
-    current_lng: Optional[float]
-    battery_level: int
-    attendance_status: str
-    distance_covered_km: float
-    last_location_update: Optional[datetime]
+    designation: Optional[str] = ""
+    assigned_territory: Optional[str] = ""
+    current_lat: Optional[float] = None
+    current_lng: Optional[float] = None
+    battery_level: Optional[int] = 0
+    attendance_status: Optional[str] = "Present"
+    distance_covered_km: Optional[float] = 0.0
+    last_location_update: Optional[datetime] = None
     full_name: str
     phone: str
-    email: Optional[str]
+    email: Optional[str] = None
     is_active: bool
 
     class Config:
@@ -53,39 +53,64 @@ def create_employee(
     current_user: User = Depends(require_role(["administrator"]))
 ):
     """Create a new field executive — Admin only."""
-    # Check if username or phone exists
-    if db.query(User).filter((User.username == payload.username) | (User.phone == payload.phone)).first():
-        raise HTTPException(status_code=400, detail="Username or Phone already exists")
+    clean_full_name = (payload.full_name or "").strip()
+    clean_phone = (payload.phone or "").strip()
+    clean_username = (payload.username or "").strip()
+    clean_employee_code = (payload.employee_code or "").strip()
+    clean_designation = (payload.designation or "").strip() or "Field Sales Officer"
+    clean_territory = (payload.assigned_territory or "").strip() or "Unassigned"
+    clean_email = payload.email.strip() if payload.email and payload.email.strip() else None
 
-    if db.query(FieldExecutive).filter(FieldExecutive.employee_code == payload.employee_code).first():
-        raise HTTPException(status_code=400, detail="Employee code already exists")
+    # Mandatory field validation
+    if not clean_full_name:
+        raise HTTPException(status_code=400, detail="Full Name is mandatory. Please fill it.")
+    if not clean_phone:
+        raise HTTPException(status_code=400, detail="Phone Number is mandatory. Please fill it.")
+    if not clean_username:
+        raise HTTPException(status_code=400, detail="Username is mandatory. Please fill it.")
+    if not clean_employee_code:
+        raise HTTPException(status_code=400, detail="Employee Code is mandatory. Please fill it.")
+
+    # Check for uniqueness
+    if db.query(User).filter(User.username == clean_username).first():
+        raise HTTPException(status_code=400, detail=f"Username '{clean_username}' already exists")
+    if db.query(User).filter(User.phone == clean_phone).first():
+        raise HTTPException(status_code=400, detail=f"Phone number '{clean_phone}' already exists")
+    if clean_email and db.query(User).filter(User.email == clean_email).first():
+        raise HTTPException(status_code=400, detail=f"Email '{clean_email}' already exists")
+    if db.query(FieldExecutive).filter(FieldExecutive.employee_code == clean_employee_code).first():
+        raise HTTPException(status_code=400, detail=f"Employee code '{clean_employee_code}' already exists")
 
     from app.models.all_models import Role
     role = db.query(Role).filter(Role.name == "field_executive").first()
     if not role:
         raise HTTPException(status_code=500, detail="Role 'field_executive' not found in database")
 
-    new_user = User(
-        full_name=payload.full_name,
-        phone=payload.phone,
-        email=payload.email,
-        username=payload.username,
-        role_id=role.id,
-        is_active=True
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    try:
+        new_user = User(
+            full_name=clean_full_name,
+            phone=clean_phone,
+            email=clean_email,
+            username=clean_username,
+            role_id=role.id,
+            is_active=True
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
 
-    new_exec = FieldExecutive(
-        user_id=new_user.id,
-        employee_code=payload.employee_code,
-        designation=payload.designation,
-        assigned_territory=payload.assigned_territory
-    )
-    db.add(new_exec)
-    db.commit()
-    db.refresh(new_exec)
+        new_exec = FieldExecutive(
+            user_id=new_user.id,
+            employee_code=clean_employee_code,
+            designation=clean_designation,
+            assigned_territory=clean_territory
+        )
+        db.add(new_exec)
+        db.commit()
+        db.refresh(new_exec)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error creating employee: {str(exc)}")
 
     # Reload with joined user to match out schema
     exec_loaded = db.query(FieldExecutive).options(joinedload(FieldExecutive.user)).filter(FieldExecutive.id == new_exec.id).first()
@@ -127,13 +152,13 @@ def list_employees(
             id=exec_.id,
             user_id=exec_.user_id,
             employee_code=exec_.employee_code,
-            designation=exec_.designation,
-            assigned_territory=exec_.assigned_territory,
+            designation=exec_.designation or "",
+            assigned_territory=exec_.assigned_territory or "",
             current_lat=exec_.current_lat,
             current_lng=exec_.current_lng,
-            battery_level=exec_.battery_level,
-            attendance_status=exec_.attendance_status,
-            distance_covered_km=exec_.distance_covered_km,
+            battery_level=exec_.battery_level if exec_.battery_level is not None else 0,
+            attendance_status=exec_.attendance_status or "Present",
+            distance_covered_km=exec_.distance_covered_km if exec_.distance_covered_km is not None else 0.0,
             last_location_update=exec_.last_location_update,
             full_name=exec_.user.full_name,
             phone=exec_.user.phone,
@@ -191,17 +216,16 @@ async def update_location(
     employee_id: int,
     payload: LocationUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_role(["field_executive", "administrator"]))
 ):
     """Update GPS location for a field executive."""
     exec_ = db.query(FieldExecutive).filter(FieldExecutive.id == employee_id).first()
     if not exec_:
         raise HTTPException(status_code=404, detail="Employee not found")
 
-    # Only the exec themselves or an admin can update location
     user_role = current_user.role.name if current_user.role else ""
-    if user_role != "administrator" and exec_.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only update your own location")
+    if user_role == "field_executive" and exec_.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied: field executives can only update their own location")
 
     exec_.current_lat = payload.lat
     exec_.current_lng = payload.lng
@@ -214,11 +238,11 @@ async def update_location(
     from app.core.websocket import manager
     from app.models.all_models import Role, User
     import json
-    
+
     try:
         admins = db.query(User).join(Role).filter(Role.name == "administrator").all()
         allowed_user_ids = [admin.id for admin in admins]
-        
+
         broadcast_data = {
             "type": "LOCATION_UPDATE",
             "data": {
@@ -230,10 +254,10 @@ async def update_location(
             }
         }
         message_str = json.dumps(broadcast_data)
-        
+
         for u_id in set(allowed_user_ids):
             await manager.send_personal_message(message_str, u_id)
-            
+
     except Exception as e:
         import logging
         logging.error(f"Error broadcasting location: {e}")

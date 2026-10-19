@@ -7,28 +7,28 @@ export const AdminReports: React.FC = () => {
   const { products, orders, shops, employees } = useAppState();
   const [activeReportTab, setActiveReportTab] = useState<'orders' | 'shop-owner' | 'employee' | 'stock' | 'eod'>('orders');
 
-  const totalBags = 14850;
+  const totalVolumeKg = 14850;
   const totalOrders = 348;
-  const avgBags = 42.6;
+  const avgVolumeKg = 42.6;
 
   // Mock 30-day distribution data
   const trendDays = [
-    { day: '01', bags: 340 },
-    { day: '03', bags: 410 },
-    { day: '05', bags: 290 },
-    { day: '08', bags: 520 },
-    { day: '10', bags: 480 },
-    { day: '12', bags: 610 },
-    { day: '15', bags: 550 },
-    { day: '18', bags: 720 },
-    { day: '20', bags: 680 },
-    { day: '22', bags: 810 },
-    { day: '25', bags: 740 },
-    { day: '28', bags: 890 },
-    { day: '30', bags: 960 },
+    { day: '01', volumeKg: 340 },
+    { day: '03', volumeKg: 410 },
+    { day: '05', volumeKg: 290 },
+    { day: '08', volumeKg: 520 },
+    { day: '10', volumeKg: 480 },
+    { day: '12', volumeKg: 610 },
+    { day: '15', volumeKg: 550 },
+    { day: '18', volumeKg: 720 },
+    { day: '20', volumeKg: 680 },
+    { day: '22', volumeKg: 810 },
+    { day: '25', volumeKg: 740 },
+    { day: '28', volumeKg: 890 },
+    { day: '30', volumeKg: 960 },
   ];
 
-  const maxBags = Math.max(...trendDays.map((d) => d.bags));
+  const maxVolumeKg = Math.max(...trendDays.map((d) => d.volumeKg));
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -108,7 +108,7 @@ export const AdminReports: React.FC = () => {
           Daily EOD Reports
         </button>
       </div>
-      
+
       {activeReportTab === 'eod' ? (
         <DailyEODReportTab />
       ) : (
@@ -117,7 +117,7 @@ export const AdminReports: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Volume Dispatched</div>
-              <div className="text-3xl font-black text-slate-900 mt-1">14,850 <span className="text-base font-bold text-slate-500">Bags</span></div>
+              <div className="text-3xl font-black text-slate-900 mt-1">14,850 <span className="text-base font-bold text-slate-500">kg</span></div>
               <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
                 <TrendingUp className="w-3.5 h-3.5" />
                 <span>+14.2% vs last month</span>
@@ -135,7 +135,7 @@ export const AdminReports: React.FC = () => {
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Avg Volume Per Order</div>
-              <div className="text-3xl font-black text-slate-900 mt-1">42.6 <span className="text-base font-bold text-slate-500">Bags</span></div>
+              <div className="text-3xl font-black text-slate-900 mt-1">42.6 <span className="text-base font-bold text-slate-500">kg</span></div>
               <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
                 <TrendingUp className="w-3.5 h-3.5" />
                 <span>+5.1% vs last month</span>
@@ -149,17 +149,17 @@ export const AdminReports: React.FC = () => {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-card p-5 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-900 text-sm">Monthly Seed Dispatch Trend (Bags)</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Monthly Seed Dispatch Trend (kg)</h3>
               <span className="text-[11px] font-mono text-slate-400">Daily Consignment Volume</span>
             </div>
 
             <div className="h-56 flex items-end gap-2.5 sm:gap-4 pt-6 pb-2 px-2 border-b border-slate-100">
               {trendDays.map((item, i) => {
-                const heightPercent = Math.round((item.bags / maxBags) * 100);
+                const heightPercent = Math.round((item.volumeKg / maxVolumeKg) * 100);
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center gap-2 group h-full justify-end">
                     <span className="text-[9px] font-mono text-slate-400 opacity-0 group-hover:opacity-100 transition">
-                      {item.bags}
+                      {item.volumeKg}
                     </span>
                     <div
                       style={{ height: `${heightPercent}%` }}
@@ -173,8 +173,8 @@ export const AdminReports: React.FC = () => {
           </div>
 
           <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-            <span>Peak Day: 30th (960 Bags)</span>
-            <span className="font-bold text-emerald-800">Total: 14,850 Bags</span>
+            <span>Peak Day: 30th (960 kg)</span>
+            <span className="font-bold text-emerald-800">Total: 14,850 kg</span>
           </div>
         </div>
 
@@ -197,7 +197,7 @@ export const AdminReports: React.FC = () => {
 
                 <div className="text-right">
                   <div className="font-mono font-bold text-xs text-emerald-800">
-                    {(1450 - idx * 210).toLocaleString()} Bags
+                    {(1450 - idx * 210).toLocaleString()} kg
                   </div>
                   <div className="text-[10px] text-slate-400 font-medium">Rank #{idx + 1}</div>
                 </div>

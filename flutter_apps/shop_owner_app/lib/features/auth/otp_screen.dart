@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_service.dart';
+import '../../core/storage/local_storage.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../field_executive/dashboard/dashboard_screen.dart' as fe;
 
@@ -43,13 +44,15 @@ class _OtpScreenState extends State<OtpScreen> {
         );
 
         if (success && mounted) {
+          final actualRole = await LocalStorage.getRole();
+          if (!mounted) return;
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) {
-              if (widget.selectedRole == 'shop_owner') {
+              if (actualRole == 'shop_owner') {
                 return const DashboardScreen();
               }
-              if (widget.selectedRole == 'field_executive') {
+              if (actualRole == 'field_executive') {
                 return const fe.DashboardScreen();
               }
               // Placeholder for other roles until integrated
@@ -64,9 +67,10 @@ class _OtpScreenState extends State<OtpScreen> {
       } catch (e) {
         debugPrint('OtpScreen caught error: $e');
         if (mounted) {
+          final message = e.toString().replaceFirst('Exception: ', '');
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Invalid or expired OTP. Please try again.'),
+            SnackBar(
+              content: Text(message.isNotEmpty ? message : 'Invalid or expired OTP. Please try again.'),
               backgroundColor: Colors.red,
             ),
           );
@@ -98,9 +102,10 @@ class _OtpScreenState extends State<OtpScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final message = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to resend OTP. Please wait a moment.'),
+          SnackBar(
+            content: Text(message.isNotEmpty ? message : 'Failed to resend OTP. Please wait a moment.'),
             backgroundColor: Colors.red,
           ),
         );

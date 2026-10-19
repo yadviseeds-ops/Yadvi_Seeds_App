@@ -1,0 +1,73 @@
+// File generated for Yadvi Seeds Unified App
+// ignore_for_file: type=lint
+import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+
+/// Default [FirebaseOptions] for use with Yadvi Seeds Unified App.
+class DefaultFirebaseOptions {
+  static FirebaseOptions get currentPlatform {
+    if (kIsWeb) {
+      return web;
+    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return android;
+      case TargetPlatform.iOS:
+        return ios;
+      case TargetPlatform.macOS:
+        return macos;
+      case TargetPlatform.windows:
+        return windows;
+      default:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions are not supported for this platform.',
+        );
+    }
+  }
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyCiheQSrduTZMTGRTLDHkblR62cc3ffasI',
+    appId: '1:943376646148:web:ca0ddc183c623b5457b551',
+    messagingSenderId: '943376646148',
+    projectId: 'yadvi-seed-app-5f306',
+    authDomain: 'yadvi-seed-app-5f306.firebaseapp.com',
+    storageBucket: 'yadvi-seed-app-5f306.firebasestorage.app',
+    measurementId: 'G-WXN21Y1S68',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyCXZICOBwTyZhwNhp03QkAk4A1JFz8aMFE',
+    appId: '1:943376646148:android:55fa4f301968830757b551',
+    messagingSenderId: '943376646148',
+    projectId: 'yadvi-seed-app-5f306',
+    storageBucket: 'yadvi-seed-app-5f306.firebasestorage.app',
+  );
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyBCtPu7ll459O6IWOFrD1dSwXeXT0IdCAU',
+    appId: '1:943376646148:ios:6d04d6e34ffedc2157b551',
+    messagingSenderId: '943376646148',
+    projectId: 'yadvi-seed-app-5f306',
+    storageBucket: 'yadvi-seed-app-5f306.firebasestorage.app',
+    iosBundleId: 'com.example.shopOwnerApp',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyBCtPu7ll459O6IWOFrD1dSwXeXT0IdCAU',
+    appId: '1:943376646148:ios:6d04d6e34ffedc2157b551',
+    messagingSenderId: '943376646148',
+    projectId: 'yadvi-seed-app-5f306',
+    storageBucket: 'yadvi-seed-app-5f306.firebasestorage.app',
+    iosBundleId: 'com.example.shopOwnerApp',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyCiheQSrduTZMTGRTLDHkblR62cc3ffasI',
+    appId: '1:943376646148:web:00e08a3eadb7b44357b551',
+    messagingSenderId: '943376646148',
+    projectId: 'yadvi-seed-app-5f306',
+    authDomain: 'yadvi-seed-app-5f306.firebaseapp.com',
+    storageBucket: 'yadvi-seed-app-5f306.firebasestorage.app',
+    measurementId: 'G-ZQBF1QQSJV',
+  );
+}

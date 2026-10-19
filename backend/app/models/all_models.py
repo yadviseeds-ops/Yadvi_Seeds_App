@@ -39,7 +39,6 @@ class ShopOwner(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     shop_name = Column(String(150), nullable=False)
-    dealer_code = Column(String(50), unique=True, nullable=False)
     market_location = Column(String(150), nullable=False)
     territory = Column(String(100), nullable=True)
     city = Column(String(100), nullable=True)
@@ -50,6 +49,8 @@ class ShopOwner(Base):
     owner_photo_url = Column(String(255), nullable=True)
     opening_stock_bags = Column(Integer, default=0)
     current_stock_bags = Column(Integer, default=0)
+    opening_stock_kg = Column(Float, default=0.0)
+    current_stock_kg = Column(Float, default=0.0)
     primary_demand_crop = Column(String(100), nullable=True)
     status = Column(String(20), default="Active")  # Active, Inactive
     assigned_executive_id = Column(Integer, ForeignKey("field_executives.id"), nullable=True)
@@ -90,6 +91,7 @@ class Product(Base):
     category = Column(String(50), nullable=False)  # Chilli, Okra, Dolichos, Pulses, Field Crops, Vegetables
     image_url = Column(String(255), nullable=False)
     available_stock_bags = Column(Integer, default=0)
+    available_stock_kg = Column(Float, default=0.0)
     germination_rate = Column(String(50), default="85% Min")
     purity = Column(String(50), default="98% Min")
     maturity_days = Column(String(50), nullable=True)
@@ -112,6 +114,8 @@ class Inventory(Base):
     batch_number = Column(String(50), nullable=False)
     total_bags = Column(Integer, default=0)
     reserved_bags = Column(Integer, default=0)
+    total_kg = Column(Float, default=0.0)
+    reserved_kg = Column(Float, default=0.0)
     last_stock_audit = Column(DateTime, default=datetime.utcnow)
 
     product = relationship("Product", back_populates="inventory_items")
@@ -123,7 +127,8 @@ class Order(Base):
     order_number = Column(String(50), unique=True, nullable=False, index=True)
     shop_id = Column(Integer, ForeignKey("shop_owners.id"), nullable=False)
     assigned_executive_id = Column(Integer, ForeignKey("field_executives.id"), nullable=True)
-    total_quantity_bags = Column(Integer, nullable=False)
+    total_quantity_bags = Column(Integer, nullable=True, default=0)
+    total_quantity_kg = Column(Float, nullable=False, default=0.0)
     total_items_count = Column(Integer, nullable=False)
     status = Column(String(50), default="New")  # New, Confirmed, Processing, Packed, Dispatched, In Transit, Delivered, Cancelled
     source = Column(String(50), default="Shop Owner App")  # Shop Owner App, Field Executive, Admin Portal
@@ -143,7 +148,9 @@ class OrderItem(Base):
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     package_size = Column(String(50), nullable=False)
-    quantity_bags = Column(Integer, nullable=False)
+    quantity_bags = Column(Integer, nullable=True, default=0)
+    quantity = Column(Float, nullable=False, default=1.0)
+    unit = Column(String(10), nullable=False, default="kg")  # "g" or "kg"
 
     order = relationship("Order", back_populates="items")
     product = relationship("Product", back_populates="order_items")
@@ -162,8 +169,9 @@ class Visit(Base):
     check_in_lng = Column(Float, nullable=True)
     notes = Column(Text, nullable=True)
     bags_ordered = Column(Integer, default=0)
+    quantity_booked_kg = Column(Float, default=0.0)
     scheduled_date = Column(DateTime, default=datetime.utcnow)
-    
+
     # New Geotagged Visit Photo Requirements
     visit_photo_url = Column(String(255), nullable=True)
     photo_lat = Column(Float, nullable=True)
@@ -213,7 +221,14 @@ class Notification(Base):
     order_number = Column(String(50), nullable=True)
     shop_name = Column(String(150), nullable=True)
     total_bags = Column(Integer, nullable=True)
+    total_quantity_kg = Column(Float, nullable=True)
     status = Column(String(50), default="Sent")
+    meta_message_id = Column(String(100), nullable=True, index=True)
+    delivery_status = Column(String(50), default="Accepted")  # Accepted, Sent, Delivered, Read, Failed
+    meta_error_code = Column(String(50), nullable=True)
+    meta_error_message = Column(Text, nullable=True)
+    delivered_at = Column(DateTime, nullable=True)
+    read_at = Column(DateTime, nullable=True)
     message_content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 

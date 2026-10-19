@@ -1,0 +1,46 @@
+# Version control & internal IDE state
+.git
+.gitignore
+.agents
+.gemini
+.vscode
+.idea
+
+# Secrets & Environment Files
+**/.env*
+**/firebase-service-account.json
+backend/firebase/*.json
+
+# Local Databases & Backups (Crucial Data Safety Rule)
+**/*.db
+**/*.sqlite3
+backend/backups/
+yadvi_seeds.db
+backend/yadvi_seeds.db
+
+# Python bytecode & test caches
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Frontend & Mobile Applications (not needed in backend container)
+node_modules/
+dist/
+build/
+flutter_apps/
+src/
+
+# Ephemeral user uploads (exclude uploads, but retain packaged catalog seed images)
+public/visits/*
+!public/visits/.gitkeep
+public/products/*
+!public/products/
+!public/products/**
+
+# Test artifacts & integration test runners
+backend/test_*.py
+backend/run_phase_b_live_test.ps1

@@ -1,13 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 import os
 import uuid
+import logging
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user, require_role
+from app.core.media_storage import (
+    get_media_storage,
+    validate_image_content,
+    generate_safe_filename,
+)
 from app.models.all_models import Visit, FieldExecutive, ShopOwner, User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/visits", tags=["Field Visits"])
 
@@ -34,7 +43,8 @@ class VisitOut(BaseModel):
     photo_lat: Optional[float] = None
     photo_lng: Optional[float] = None
     notes: Optional[str]
-    bags_ordered: int
+    bags_ordered: Optional[int] = 0
+    quantity_booked_kg: Optional[float] = 0.0
     scheduled_date: datetime
 
     class Config:
@@ -49,6 +59,8 @@ class VisitUploadRequest(BaseModel):
 
 
 def _build_visit_out(v: Visit) -> VisitOut:
+    photo_url = v.visit_photo_url
+    booked_kg = v.quantity_booked_kg if v.quantity_booked_kg is not None else float(v.bags_ordered or 0)
     return VisitOut(
         id=v.id,
         executive_id=v.executive_id,
@@ -67,11 +79,12 @@ def _build_visit_out(v: Visit) -> VisitOut:
         purpose=v.purpose,
         status=v.status,
         visited_at=v.visited_at,
-        photo_url=v.visit_photo_url,
+        photo_url=photo_url,
         photo_lat=v.photo_lat,
         photo_lng=v.photo_lng,
         notes=v.notes,
-        bags_ordered=v.bags_ordered,
+        bags_ordered=v.bags_ordered or int(booked_kg),
+        quantity_booked_kg=booked_kg,
         scheduled_date=v.scheduled_date,
     )
 
@@ -145,25 +158,35 @@ def upload_visit_photo(
     if not visit:
         raise HTTPException(status_code=404, detail="Visit not found")
 
-    # Ensure the visits directory exists
-    public_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "public", "visits")
-    os.makedirs(public_dir, exist_ok=True)
+    # Verify authorization: field executive can only upload for their own assigned visits
+    role_name = current_user.role.name if current_user.role else ""
+    if role_name == "field_executive":
+        if not visit.executive or visit.executive.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to upload photo for another executive's visit."
+            )
 
-    # Save file
-    file_ext = os.path.splitext(file.filename)[1] if file.filename else ".jpg"
-    unique_filename = f"visit_{visit.id}_{uuid.uuid4().hex}{file_ext}"
-    file_path = os.path.join(public_dir, unique_filename)
+    # Validate image content & 10MB size limit
+    contents = file.file.read()
+    detected_ext, detected_mime = validate_image_content(
+        contents,
+        max_size_bytes=10 * 1024 * 1024,
+        allowed_extensions=["jpg", "jpeg", "png", "webp"]
+    )
 
-    with open(file_path, "wb") as f:
-        f.write(file.file.read())
+    # Generate secure server-side filename and persist through media storage abstraction
+    safe_filename = generate_safe_filename(prefix=f"visit_{visit.id}", extension=detected_ext)
+    storage = get_media_storage()
+    saved_url = storage.save(contents, safe_filename, content_type=detected_mime, folder="visits")
 
     visit.visited_at = datetime.utcnow()
     visit.status = "Visited"
     visit.photo_lat = photo_lat
     visit.photo_lng = photo_lng
-    # Store relative path so frontend can construct the full URL, or absolute path if mounted
-    visit.visit_photo_url = f"/public/visits/{unique_filename}"
-    
+    # Store canonical relative path so database remains backend-agnostic
+    visit.visit_photo_url = saved_url
+
     if notes:
         visit.notes = notes
 

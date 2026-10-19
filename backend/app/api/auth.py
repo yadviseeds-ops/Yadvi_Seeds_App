@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.security import create_access_token, get_current_user, require_role
+from app.core.security import create_access_token, get_current_user, require_role, verify_password
 from app.models.all_models import User, Role
 from app.schemas.auth_schemas import OTPRequest, OTPVerifyRequest, TokenResponse, UserBase, RoleCheckResponse
 from app.core.sms import generate_secure_otp, send_sms_otp
@@ -19,6 +19,22 @@ router = APIRouter(prefix="/auth", tags=["Authentication & RBAC"])
 # Key: mobile string, Value: {"otp": string, "expires_at": float, "attempts": int}
 OTP_STORE = {}
 
+import re
+
+def normalize_phone_number(phone: str) -> str:
+    """
+    Normalizes a phone number to standard 10-digit format for India.
+    Strips country code (+91 or 91), leading 0s, spaces, hyphens, and symbols.
+    """
+    if not phone:
+        return ""
+    digits = re.sub(r"\D", "", phone.strip())
+    if len(digits) == 12 and digits.startswith("91"):
+        digits = digits[2:]
+    elif len(digits) == 11 and digits.startswith("0"):
+        digits = digits[1:]
+    return digits
+
 def normalize_role(role_str: str) -> str:
     cleaned = role_str.strip().lower().replace(" ", "_")
     if cleaned in ["administrator", "admin"]:
@@ -29,21 +45,66 @@ def normalize_role(role_str: str) -> str:
         return "shop_owner"
     return cleaned
 
+def _create_token_response(user: User) -> TokenResponse:
+    user_actual_role = user.role.name if user.role else ""
+    redirect_map = {
+        "administrator": "/admin",
+        "field_executive": "/field-executive",
+        "shop_owner": "/shop-owner"
+    }
+
+    metadata = {}
+    if user_actual_role == "shop_owner" and user.shop_profile:
+        metadata["shop_name"] = user.shop_profile.shop_name
+        metadata["shop_id"] = user.shop_profile.id
+    elif user_actual_role == "field_executive" and user.field_profile:
+        metadata["employee_code"] = user.field_profile.employee_code
+        metadata["assigned_territory"] = user.field_profile.assigned_territory
+
+    access_token = create_access_token(
+        data={
+            "sub": str(user.id),
+            "role": user_actual_role,
+            "name": user.full_name
+        }
+    )
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        role=user_actual_role,
+        user_id=user.id,
+        full_name=user.full_name,
+        redirect_path=redirect_map.get(user_actual_role, "/admin"),
+        metadata=metadata
+    )
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 class VerifyUserRequest(BaseModel):
     username: str
     mobile: str
 
 @router.post("/verify-user")
 def verify_user(request: VerifyUserRequest, db: Session = Depends(get_db)):
-    clean_mobile = request.mobile.strip().replace(" ", "").replace("+91", "")
     clean_username = request.username.strip()
+    norm_mobile = normalize_phone_number(request.mobile)
 
+    if not norm_mobile or len(norm_mobile) != 10:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or registered mobile number."
+        )
+
+    candidates = [norm_mobile, f"+91{norm_mobile}", f"0{norm_mobile}", f"91{norm_mobile}"]
     user = db.query(User).filter(
         User.username == clean_username,
-        User.phone.like(f"%{clean_mobile}%")
+        User.phone.in_(candidates)
     ).first()
 
-    if not user or not user.is_active:
+    if not user or normalize_phone_number(user.phone) != norm_mobile or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or registered mobile number."
@@ -57,19 +118,32 @@ class FirebaseLoginRequest(BaseModel):
 
 @router.post("/login-firebase", response_model=TokenResponse)
 def login_firebase(request: FirebaseLoginRequest, db: Session = Depends(get_db)):
-    clean_mobile = request.mobile.strip().replace(" ", "").replace("+91", "")
     clean_username = request.username.strip()
+    norm_mobile = normalize_phone_number(request.mobile)
 
-    # 1. Verify User exists in DB
-    user = db.query(User).filter(
-        User.username == clean_username,
-        User.phone.like(f"%{clean_mobile}%")
-    ).first()
-
-    if not user or not user.is_active:
+    if not norm_mobile or len(norm_mobile) != 10:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials."
+        )
+
+    # 1. Verify User exists in DB and is active (exact phone match, no substring match)
+    candidates = [norm_mobile, f"+91{norm_mobile}", f"0{norm_mobile}", f"91{norm_mobile}"]
+    user = db.query(User).filter(
+        User.username == clean_username,
+        User.phone.in_(candidates)
+    ).first()
+
+    if not user or normalize_phone_number(user.phone) != norm_mobile:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials."
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account is inactive. Please contact administrator."
         )
 
     # 2. Verify Firebase Token using Admin SDK
@@ -77,12 +151,16 @@ def login_firebase(request: FirebaseLoginRequest, db: Session = Depends(get_db))
         from firebase_admin import auth as fb_auth
         decoded_token = fb_auth.verify_id_token(request.firebase_id_token)
         firebase_phone = decoded_token.get("phone_number", "")
-        # Validate that the firebase phone matches the requested mobile
-        if clean_mobile not in firebase_phone:
+        norm_firebase_phone = normalize_phone_number(firebase_phone)
+
+        # Validate that the authenticated firebase phone matches the requested mobile exactly
+        if not norm_firebase_phone or norm_firebase_phone != norm_mobile:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Firebase phone number mismatch. Authentication rejected."
             )
+    except HTTPException:
+        raise
     except ImportError:
         logger.warning("firebase_admin not installed.")
         raise HTTPException(status_code=500, detail="Firebase Admin SDK missing.")
@@ -99,53 +177,28 @@ def login_firebase(request: FirebaseLoginRequest, db: Session = Depends(get_db))
             detail="Invalid or expired Firebase authentication token."
         )
 
-    # 3. Create Session
-    user_actual_role = user.role.name if user.role else ""
-    redirect_map = {
-        "administrator": "/admin",
-        "field_executive": "/field-executive",
-        "shop_owner": "/shop-owner"
-    }
-
-    metadata = {}
-    if user_actual_role == "shop_owner" and user.shop_profile:
-        metadata["shop_name"] = user.shop_profile.shop_name
-        metadata["dealer_code"] = user.shop_profile.dealer_code
-    elif user_actual_role == "field_executive" and user.field_profile:
-        metadata["employee_code"] = user.field_profile.employee_code
-        metadata["assigned_territory"] = user.field_profile.assigned_territory
-
-    access_token = create_access_token(
-        data={
-            "sub": str(user.id),
-            "role": user_actual_role,
-            "name": user.full_name
-        }
-    )
-
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
-        role=user_actual_role,
-        user_id=user.id,
-        full_name=user.full_name,
-        redirect_path=redirect_map.get(user_actual_role, "/admin"),
-        metadata=metadata
-    )
+    # 3. Create Session (always from database role, client role is not accepted)
+    return _create_token_response(user)
 
 @router.post("/request-otp")
 def request_otp(request: OTPRequest, db: Session = Depends(get_db)):
-    clean_mobile = request.mobile.strip().replace(" ", "").replace("+91", "")
     clean_username = request.username.strip()
+    norm_mobile = normalize_phone_number(request.mobile)
 
-    # DB validation: username, mobile match, active account
+    if not norm_mobile or len(norm_mobile) != 10:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or registered mobile number."
+        )
+
+    # DB validation: username, exact mobile match, active account
+    candidates = [norm_mobile, f"+91{norm_mobile}", f"0{norm_mobile}", f"91{norm_mobile}"]
     user = db.query(User).filter(
         User.username == clean_username,
-        User.phone.like(f"%{clean_mobile}%")
+        User.phone.in_(candidates)
     ).first()
 
-    if not user or not user.is_active:
-        # Generic safe error
+    if not user or normalize_phone_number(user.phone) != norm_mobile or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or registered mobile number."
@@ -153,7 +206,7 @@ def request_otp(request: OTPRequest, db: Session = Depends(get_db)):
 
     # Cooldown check
     now = time.time()
-    existing_otp = OTP_STORE.get(clean_mobile)
+    existing_otp = OTP_STORE.get(norm_mobile)
     if existing_otp and now < existing_otp["expires_at"] - 240: # 1 min cooldown
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -162,22 +215,15 @@ def request_otp(request: OTPRequest, db: Session = Depends(get_db)):
 
     # Generate and store OTP
     otp = generate_secure_otp()
-    OTP_STORE[clean_mobile] = {
+    OTP_STORE[norm_mobile] = {
         "otp": otp,
         "expires_at": now + 300, # 5 minutes expiry
         "attempts": 0
     }
 
     # Send via SMS provider
-    success = send_sms_otp(clean_mobile, otp)
+    success = send_sms_otp(norm_mobile, otp)
     if not success:
-        # During local dev without config, sms provider returns False but we still want to proceed for dev testing,
-        # Wait, requirement says: "Do NOT silently pretend that an SMS was sent. Return a clear configuration error. Do not expose the OTP."
-        # BUT we must test this. If we return error, we can't login locally. Let's just print to console ONLY IF local dev?
-        # Requirement says: "Do not print OTP to console".
-        # I will raise an error if sending fails. To test, user MUST provide SMS_PROVIDER env var,
-        # OR we temporarily bypass if a specific dev flag is on.
-        # "Use the actual provider only after credentials/configuration are available."
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send SMS. Please check SMS provider configuration."
@@ -190,22 +236,29 @@ def request_otp(request: OTPRequest, db: Session = Depends(get_db)):
 
 @router.post("/verify-otp", response_model=TokenResponse)
 def verify_otp(request: OTPVerifyRequest, db: Session = Depends(get_db)):
-    clean_mobile = request.mobile.strip().replace(" ", "").replace("+91", "")
     clean_username = request.username.strip()
+    norm_mobile = normalize_phone_number(request.mobile)
 
-    # Validate User
-    user = db.query(User).filter(
-        User.username == clean_username,
-        User.phone.like(f"%{clean_mobile}%")
-    ).first()
-
-    if not user or not user.is_active:
+    if not norm_mobile or len(norm_mobile) != 10:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials."
         )
 
-    otp_data = OTP_STORE.get(clean_mobile)
+    # Validate User
+    candidates = [norm_mobile, f"+91{norm_mobile}", f"0{norm_mobile}", f"91{norm_mobile}"]
+    user = db.query(User).filter(
+        User.username == clean_username,
+        User.phone.in_(candidates)
+    ).first()
+
+    if not user or normalize_phone_number(user.phone) != norm_mobile or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials."
+        )
+
+    otp_data = OTP_STORE.get(norm_mobile)
     now = time.time()
 
     if not otp_data:
@@ -215,20 +268,20 @@ def verify_otp(request: OTPVerifyRequest, db: Session = Depends(get_db)):
         )
 
     if now > otp_data["expires_at"]:
-        del OTP_STORE[clean_mobile]
+        del OTP_STORE[norm_mobile]
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="OTP has expired. Please request a new one."
         )
 
     if otp_data["attempts"] >= 3:
-        del OTP_STORE[clean_mobile]
+        del OTP_STORE[norm_mobile]
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Too many invalid attempts. Please request a new OTP."
         )
 
-    if request.otp != otp_data["otp"] and request.otp != "123456":
+    if request.otp != otp_data["otp"]:
         otp_data["attempts"] += 1
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -236,76 +289,66 @@ def verify_otp(request: OTPVerifyRequest, db: Session = Depends(get_db)):
         )
 
     # Success, clear OTP
-    del OTP_STORE[clean_mobile]
+    del OTP_STORE[norm_mobile]
+    return _create_token_response(user)
 
-    user_actual_role = user.role.name if user.role else ""
-    redirect_map = {
-        "administrator": "/admin",
-        "field_executive": "/field-executive",
-        "shop_owner": "/shop-owner"
-    }
-
-    metadata = {}
-    if user_actual_role == "shop_owner" and user.shop_profile:
-        metadata["shop_name"] = user.shop_profile.shop_name
-        metadata["dealer_code"] = user.shop_profile.dealer_code
-    elif user_actual_role == "field_executive" and user.field_profile:
-        metadata["employee_code"] = user.field_profile.employee_code
-        metadata["assigned_territory"] = user.field_profile.assigned_territory
-
-    access_token = create_access_token(
-        data={
-            "sub": str(user.id),
-            "role": user_actual_role,
-            "name": user.full_name
-        }
-    )
-
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
-        role=user_actual_role,
-        user_id=user.id,
-        full_name=user.full_name,
-        redirect_path=redirect_map.get(user_actual_role, "/admin"),
-        metadata=metadata
-    )
-
-# Legacy /token for Swagger UI compatibility (using OTP in password field)
-@router.post("/token", response_model=TokenResponse)
-def login_swagger(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    # In Swagger, username field = mobile, password field = OTP (since we don't use passwords anymore)
-    # This is ONLY for Swagger UI testing ease.
-    clean_mobile = form_data.username.strip().replace(" ", "").replace("+91", "")
+@router.post("/login", response_model=TokenResponse)
+def login_password(request: LoginRequest, db: Session = Depends(get_db)):
+    """Password-based login for Administrator and users with configured passwords."""
+    clean_identifier = request.username.strip()
+    clean_mobile = clean_identifier.replace(" ", "").replace("+91", "")
 
     user = db.query(User).filter(
-        User.phone.like(f"%{clean_mobile}%")
+        (User.username == clean_identifier) | (User.phone == clean_identifier) | (User.phone.like(f"%{clean_mobile}%"))
     ).first()
 
     if not user or not user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid mobile number or inactive account")
-
-    # Verify OTP
-    otp_data = OTP_STORE.get(clean_mobile)
-    if not otp_data or form_data.password != otp_data["otp"]:
+        logger.warning(f"Login failed: user not found or inactive for {clean_identifier} (user={user})")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="OTP required. Please generate OTP first via /auth/request-otp, then enter it as password."
+            detail="Invalid username or password."
         )
-    del OTP_STORE[clean_mobile]
 
-    user_actual_role = user.role.name if user.role else ""
-    access_token = create_access_token(
-        data={"sub": str(user.id), "role": user_actual_role, "name": user.full_name}
-    )
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
-        role=user_actual_role,
-        user_id=user.id,
-        full_name=user.full_name,
-        redirect_path="/",
-        metadata={}
+    if not user.hashed_password or not verify_password(request.password, user.hashed_password):
+        logger.warning(f"Login failed: password mismatch for {clean_identifier} (has_hash={bool(user.hashed_password)})")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password."
+        )
+
+    return _create_token_response(user)
+
+
+@router.post("/token", response_model=TokenResponse)
+def login_oauth2(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """
+    OAuth2 Password Form endpoint for Swagger UI (/docs) and OAuth2 clients.
+    Authenticates via username/phone and password hash.
+    Falls back to OTP in the password field for backward compatibility.
+    """
+    clean_identifier = form_data.username.strip()
+    clean_mobile = clean_identifier.replace(" ", "").replace("+91", "")
+
+    user = db.query(User).filter(
+        (User.username == clean_identifier) | (User.phone == clean_identifier) | (User.phone.like(f"%{clean_mobile}%"))
+    ).first()
+
+    if not user or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
+
+    # 1. Try standard password authentication
+    if user.hashed_password and verify_password(form_data.password, user.hashed_password):
+        return _create_token_response(user)
+
+    # 2. Backward compatibility fallback: check if password field was an active OTP
+    otp_data = OTP_STORE.get(clean_mobile)
+    if otp_data and form_data.password == otp_data.get("otp"):
+        del OTP_STORE[clean_mobile]
+        return _create_token_response(user)
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid credentials. For password login, enter your registered password. For OTP login, generate an OTP first via /auth/request-otp."
     )
 
 @router.get("/me", response_model=UserBase)
@@ -374,3 +417,23 @@ def register_fcm_token(request: FCMTokenRequest, db: Session = Depends(get_db), 
         db.commit()
 
     return {"status": "success", "message": "FCM Token registered"}
+
+
+class WebSocketTicketResponse(BaseModel):
+    ticket: str
+    expires_in: int
+
+
+@router.post("/ws-ticket", response_model=WebSocketTicketResponse)
+def get_websocket_ticket(current_user: User = Depends(get_current_user)):
+    """
+    Issues a short-lived (60s), single-use connection ticket for WebSocket authentication.
+    Prevents long-lived bearer JWTs from leaking into URL query string parameters and proxy logs.
+    """
+    from app.core.websocket import ticket_manager
+
+    ticket = ticket_manager.issue_ticket(current_user.id)
+    return WebSocketTicketResponse(
+        ticket=ticket,
+        expires_in=ticket_manager.ttl_seconds
+    )

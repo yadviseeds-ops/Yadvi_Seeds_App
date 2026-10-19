@@ -25,7 +25,7 @@ export const AdminEmployees: React.FC = () => {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isRemoving, setIsRemoving] = useState<string | number | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  
+
   // Add Employee Form State
   const [addForm, setAddForm] = useState({
     full_name: '',
@@ -36,6 +36,76 @@ export const AdminEmployees: React.FC = () => {
     designation: 'Field Sales Officer',
     assigned_territory: ''
   });
+  const [addError, setAddError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleOpenAddModal = () => {
+    setAddError(null);
+    setAddForm({
+      full_name: '',
+      phone: '',
+      email: '',
+      username: '',
+      employee_code: '',
+      designation: 'Field Sales Officer',
+      assigned_territory: ''
+    });
+    setIsAddModalOpen(true);
+  };
+
+  const handleAddEmployeeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddError(null);
+
+    // Validation for whitespace-only or empty mandatory fields
+    if (!addForm.full_name || !addForm.full_name.trim()) {
+      setAddError('Full Name is mandatory. Please fill it.');
+      return;
+    }
+    if (!addForm.phone || !addForm.phone.trim()) {
+      setAddError('Phone Number is mandatory. Please fill it.');
+      return;
+    }
+    const cleanDigits = addForm.phone.replace(/\D/g, '');
+    if (cleanDigits.length < 10) {
+      setAddError('Phone Number must be a valid 10-digit mobile number.');
+      return;
+    }
+    if (!addForm.username || !addForm.username.trim()) {
+      setAddError('Username is mandatory. Please fill it.');
+      return;
+    }
+    if (!addForm.employee_code || !addForm.employee_code.trim()) {
+      setAddError('Employee Code is mandatory. Please fill it.');
+      return;
+    }
+    if (addForm.email && addForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addForm.email.trim())) {
+      setAddError('Please enter a valid email address.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await addEmployee({
+        full_name: addForm.full_name.trim(),
+        phone: addForm.phone.trim(),
+        email: addForm.email.trim() || undefined,
+        username: addForm.username.trim(),
+        employee_code: addForm.employee_code.trim(),
+        designation: (addForm.designation && addForm.designation.trim()) || 'Field Sales Officer',
+        assigned_territory: addForm.assigned_territory.trim() || ''
+      });
+      setIsAddModalOpen(false);
+      setAddForm({
+        full_name: '', phone: '', email: '', username: '', employee_code: '', designation: 'Field Sales Officer', assigned_territory: ''
+      });
+      alert('Employee added successfully!');
+    } catch (err: any) {
+      setAddError(err?.message || 'Failed to add employee');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const filteredEmployees = employees.filter((emp) => {
     const matchesSearch =
@@ -55,7 +125,7 @@ export const AdminEmployees: React.FC = () => {
           <p className="text-xs text-slate-500">Manage your field force and monitor live productivity</p>
         </div>
         <button
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={handleOpenAddModal}
           className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition"
         >
           <Plus className="w-4 h-4" />
@@ -322,60 +392,111 @@ export const AdminEmployees: React.FC = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              try {
-                await addEmployee(addForm);
-                setIsAddModalOpen(false);
-                setAddForm({
-                  full_name: '', phone: '', email: '', username: '', employee_code: '', designation: 'Field Sales Officer', assigned_territory: ''
-                });
-                alert('Employee added successfully!');
-              } catch (err) {
-                alert('Failed to add employee');
-              }
-            }} className="p-6 space-y-4">
-              
+
+            <form onSubmit={handleAddEmployeeSubmit} className="p-6 space-y-4" noValidate>
+              {addError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between">
+                  <span>{addError}</span>
+                  <button type="button" onClick={() => setAddError(null)} className="text-red-500 hover:text-red-700 font-bold text-sm ml-2">×</button>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase">Full Name</label>
-                  <input required value={addForm.full_name} onChange={e => setAddForm({...addForm, full_name: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                  <label className="text-[11px] font-bold text-slate-600 uppercase">
+                    Full Name <span className="text-red-500 font-bold">*</span>
+                  </label>
+                  <input
+                    value={addForm.full_name}
+                    onChange={e => setAddForm({...addForm, full_name: e.target.value})}
+                    type="text"
+                    placeholder="e.g. Suresh Babu"
+                    className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase">Phone</label>
-                  <input required value={addForm.phone} onChange={e => setAddForm({...addForm, phone: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase">Email (Optional)</label>
-                  <input value={addForm.email} onChange={e => setAddForm({...addForm, email: e.target.value})} type="email" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase">Username</label>
-                  <input required value={addForm.username} onChange={e => setAddForm({...addForm, username: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                  <label className="text-[11px] font-bold text-slate-600 uppercase">
+                    Phone <span className="text-red-500 font-bold">*</span>
+                  </label>
+                  <input
+                    value={addForm.phone}
+                    onChange={e => setAddForm({...addForm, phone: e.target.value})}
+                    type="tel"
+                    placeholder="10-digit mobile"
+                    className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase">Employee Code</label>
-                  <input required value={addForm.employee_code} onChange={e => setAddForm({...addForm, employee_code: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                  <label className="text-[11px] font-bold text-slate-600 uppercase">
+                    Email (Optional)
+                  </label>
+                  <input
+                    value={addForm.email}
+                    onChange={e => setAddForm({...addForm, email: e.target.value})}
+                    type="email"
+                    placeholder="name@example.com"
+                    className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase">Territory</label>
-                  <input required value={addForm.assigned_territory} onChange={e => setAddForm({...addForm, assigned_territory: e.target.value})} type="text" className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                  <label className="text-[11px] font-bold text-slate-600 uppercase">
+                    Username <span className="text-red-500 font-bold">*</span>
+                  </label>
+                  <input
+                    value={addForm.username}
+                    onChange={e => setAddForm({...addForm, username: e.target.value})}
+                    type="text"
+                    placeholder="e.g. suresh_fe"
+                    className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-600 uppercase">
+                    Employee Code <span className="text-red-500 font-bold">*</span>
+                  </label>
+                  <input
+                    value={addForm.employee_code}
+                    onChange={e => setAddForm({...addForm, employee_code: e.target.value})}
+                    type="text"
+                    placeholder="e.g. YHS-EMP-005"
+                    className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-600 uppercase">
+                    Territory (Optional)
+                  </label>
+                  <input
+                    value={addForm.assigned_territory}
+                    onChange={e => setAddForm({...addForm, assigned_territory: e.target.value})}
+                    type="text"
+                    placeholder="e.g. Guntur - Nuzvid"
+                    className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
                 </div>
               </div>
 
               <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+                >
                   Cancel
                 </button>
-                <button type="submit" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs">
-                  Save Employee
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Saving...' : 'Save Employee'}
                 </button>
               </div>
 

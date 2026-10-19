@@ -17,11 +17,13 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/token", auto_error=False)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    if not plain_password or not hashed_password:
+        return False
     try:
         return pwd_context.verify(plain_password, hashed_password)
-    except Exception:
-        # Fallback plain comparison for mock/demo convenience if bcrypt hash is invalid
-        return plain_password == hashed_password
+    except Exception as e:
+        logger.error(f"Password verification error: {e}")
+        return False
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)

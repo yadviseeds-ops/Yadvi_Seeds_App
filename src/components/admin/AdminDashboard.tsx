@@ -23,9 +23,9 @@ export const AdminDashboard: React.FC = () => {
   const liveTrackingCount = employees.filter((e) => e.attendanceStatus === 'In Field' || e.attendanceStatus === 'Present').length;
   const totalShopOwners = shops.length * 50; // Scaled representation // Scaled representation
 
-  // Total bags ordered across orders
+  // Total volume ordered across orders
   const todayOrders = orders.slice(0, 5);
-  const totalBagsToday = orders.reduce((sum, ord) => sum + ord.totalQuantityBags, 0);
+  const totalKgToday = orders.reduce((sum, ord) => sum + (ord.totalQuantityKg ?? 0), 0);
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -105,7 +105,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-black text-slate-900">{orders.length}</span>
             <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-900 font-bold">
-              {totalBagsToday} Bags
+              {Number(totalKgToday.toFixed(1))} kg
             </span>
           </div>
           <div className="text-[10px] text-slate-400 mt-1 font-medium">Volume booked today</div>
@@ -355,8 +355,8 @@ export const AdminDashboard: React.FC = () => {
                 <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                   <th className="pb-3 pl-1">Shop Owner</th>
                   <th className="pb-3">Top Product</th>
-                  <th className="pb-3 text-right">Opening (Bags)</th>
-                  <th className="pb-3 pr-1 text-right">Stock (Bags)</th>
+                  <th className="pb-3 text-right">Opening (kg)</th>
+                  <th className="pb-3 pr-1 text-right">Stock (kg)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -367,9 +367,9 @@ export const AdminDashboard: React.FC = () => {
                       <div className="text-[10px] text-slate-400">📍 {shop.location}</div>
                     </td>
                     <td className="py-3 text-slate-600 font-medium">{shop.primaryCropDemand}</td>
-                    <td className="py-3 text-right font-mono text-slate-500">{shop.openingStockBags}</td>
+                    <td className="py-3 text-right font-mono text-slate-500">{shop.openingStockKg ?? shop.openingStockBags ?? 0}</td>
                     <td className="py-3 pr-1 text-right font-mono font-bold text-emerald-800">
-                      {shop.currentStockBags}
+                      {shop.currentStockKg ?? shop.currentStockBags ?? 0}
                     </td>
                   </tr>
                 ))}
@@ -398,7 +398,7 @@ export const AdminDashboard: React.FC = () => {
                   <th className="pb-3 pl-1">Order ID</th>
                   <th className="pb-3">Shop</th>
                   <th className="pb-3 text-center">Items</th>
-                  <th className="pb-3 text-center">Total Bags</th>
+                  <th className="pb-3 text-center">Total Volume</th>
                   <th className="pb-3 pr-1 text-right">Status</th>
                 </tr>
               </thead>
@@ -415,7 +415,7 @@ export const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="py-3 text-center font-mono">{ord.totalItemsCount}</td>
                     <td className="py-3 text-center font-mono font-bold text-slate-900">
-                      {ord.totalQuantityBags} Bags
+                      {ord.totalQuantityKg ?? 0} kg
                     </td>
                     <td className="py-3 pr-1 text-right">
                       <span
@@ -463,17 +463,17 @@ export const AdminDashboard: React.FC = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80">
             <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Pending Warehouse Packing</span>
-            <div className="text-xl font-black text-amber-900 mt-1">165 Bags</div>
+            <div className="text-xl font-black text-amber-900 mt-1">165 kg</div>
             <span className="text-[10px] text-amber-700 font-medium">8 Dealer indents queued</span>
           </div>
           <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200/80">
             <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800">In-Transit On Road</span>
-            <div className="text-xl font-black text-blue-900 mt-1">480 Bags</div>
+            <div className="text-xl font-black text-blue-900 mt-1">480 kg</div>
             <span className="text-[10px] text-blue-700 font-medium">14 Active LR consignments</span>
           </div>
           <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200/80">
             <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800">Out For Shop Handover</span>
-            <div className="text-xl font-black text-purple-900 mt-1">85 Bags</div>
+            <div className="text-xl font-black text-purple-900 mt-1">85 kg</div>
             <span className="text-[10px] text-purple-700 font-medium">3 Local delivery vehicles</span>
           </div>
           <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80">
@@ -490,7 +490,7 @@ export const AdminDashboard: React.FC = () => {
               <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 <th className="pb-2.5 pl-1">Dealer / Shop</th>
                 <th className="pb-2.5">Territory</th>
-                <th className="pb-2.5 text-center">Outstanding Bags</th>
+                <th className="pb-2.5 text-center">Outstanding Volume</th>
                 <th className="pb-2.5">Associated Order</th>
                 <th className="pb-2.5 pr-1 text-right">Dispatch Status</th>
               </tr>
@@ -499,7 +499,7 @@ export const AdminDashboard: React.FC = () => {
               <tr className="hover:bg-slate-50/80 transition">
                 <td className="py-2.5 pl-1 font-bold text-slate-900">ABC Seeds & Fertilizers</td>
                 <td className="py-2.5 text-slate-500">Guntur Market Yard</td>
-                <td className="py-2.5 text-center font-mono font-bold text-amber-800">25 Bags</td>
+                <td className="py-2.5 text-center font-mono font-bold text-amber-800">25 kg</td>
                 <td className="py-2.5 font-mono text-emerald-700 font-bold">ORD-1025</td>
                 <td className="py-2.5 pr-1 text-right">
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900">
@@ -510,7 +510,7 @@ export const AdminDashboard: React.FC = () => {
               <tr className="hover:bg-slate-50/80 transition">
                 <td className="py-2.5 pl-1 font-bold text-slate-900">Sri Balaji Agro Agencies</td>
                 <td className="py-2.5 text-slate-500">Tenali Main Road</td>
-                <td className="py-2.5 text-center font-mono font-bold text-blue-800">45 Bags</td>
+                <td className="py-2.5 text-center font-mono font-bold text-blue-800">45 kg</td>
                 <td className="py-2.5 font-mono text-emerald-700 font-bold">ORD-1024</td>
                 <td className="py-2.5 pr-1 text-right">
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900">
@@ -521,7 +521,7 @@ export const AdminDashboard: React.FC = () => {
               <tr className="hover:bg-slate-50/80 transition">
                 <td className="py-2.5 pl-1 font-bold text-slate-900">Kisan Krishi Seva Kendra</td>
                 <td className="py-2.5 text-slate-500">Vijayawada Rural</td>
-                <td className="py-2.5 text-center font-mono font-bold text-blue-800">30 Bags</td>
+                <td className="py-2.5 text-center font-mono font-bold text-blue-800">30 kg</td>
                 <td className="py-2.5 font-mono text-emerald-700 font-bold">ORD-1023</td>
                 <td className="py-2.5 pr-1 text-right">
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900">
@@ -532,7 +532,7 @@ export const AdminDashboard: React.FC = () => {
               <tr className="hover:bg-slate-50/80 transition">
                 <td className="py-2.5 pl-1 font-bold text-slate-900">Annapurna Rythu Seva</td>
                 <td className="py-2.5 text-slate-500">Nandigama Bypass</td>
-                <td className="py-2.5 text-center font-mono font-bold text-emerald-800">60 Bags</td>
+                <td className="py-2.5 text-center font-mono font-bold text-emerald-800">60 kg</td>
                 <td className="py-2.5 font-mono text-emerald-700 font-bold">ORD-1022</td>
                 <td className="py-2.5 pr-1 text-right">
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900">

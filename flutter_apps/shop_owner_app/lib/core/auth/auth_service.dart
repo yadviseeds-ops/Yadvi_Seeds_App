@@ -10,94 +10,112 @@ class AuthService {
   final ApiClient _apiClient = ApiClient();
 
   String? _verificationId;
+  int? _resendToken;
+  bool _isRequestingOtp = false;
 
   Future<String> requestOtp(String username, String mobile) async {
-    // 1. Verify user exists and is valid first
-    final verifyResponse = await _apiClient.post('/api/v1/auth/verify-user', {
-      'username': username,
-      'mobile': mobile,
-    });
-
-    if (verifyResponse.statusCode != 200) {
-      throw Exception('Invalid username or registered mobile number.');
+    if (_isRequestingOtp) {
+      throw Exception('An OTP request is already in progress. Please wait.');
     }
+    _isRequestingOtp = true;
 
-    final completer = Completer<String>();
+    try {
+      // 1. Verify user exists and is valid first
+      final verifyResponse = await _apiClient.post('/api/v1/auth/verify-user', {
+        'username': username,
+        'mobile': mobile,
+      });
 
-    await _auth.verifyPhoneNumber(
-      phoneNumber: '+91$mobile',
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        debugPrint('Firebase verificationCompleted');
-        try {
-          await _auth.signInWithCredential(credential);
-        } catch (e) {
-          debugPrint('Auto verification failed: $e');
-        }
-      },
-      verificationFailed: (FirebaseAuthException e) {
-        debugPrint('Firebase verificationFailed: ${e.code}');
-        debugPrint('Firebase verificationFailed message: ${e.message}');
+      if (verifyResponse.statusCode != 200) {
+        throw Exception('Invalid username or registered mobile number.');
+      }
 
-        if (!completer.isCompleted) {
-          completer.completeError(e);
-        }
-      },
-      codeSent: (String verificationId, int? resendToken) {
-        debugPrint('Firebase codeSent: verificationId received');
-        _verificationId = verificationId;
-        debugPrint(
-          'Verification ID available after codeSent: ${_verificationId != null}',
-        );
+      final completer = Completer<String>();
 
-        if (!completer.isCompleted) {
-          completer.complete(verificationId);
-        }
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {
-        debugPrint('Firebase codeAutoRetrievalTimeout');
-        _verificationId = verificationId;
+      await _auth.verifyPhoneNumber(
+        phoneNumber: '+91$mobile',
+        forceResendingToken: _resendToken,
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          debugPrint('Firebase verificationCompleted');
+          try {
+            await _auth.signInWithCredential(credential);
+          } catch (e) {
+            debugPrint('Auto verification failed: $e');
+          }
+          if (!completer.isCompleted) {
+            _verificationId = 'auto_verified';
+            completer.complete('auto_verified');
+          }
+        },
+        verificationFailed: (FirebaseAuthException e) {
+          debugPrint('Firebase verificationFailed: ${e.code}');
+          debugPrint('Firebase verificationFailed message: ${e.message}');
 
-        if (!completer.isCompleted) {
-          completer.complete(verificationId);
-        }
-      },
-    );
+          if (!completer.isCompleted) {
+            completer.completeError(e);
+          }
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          debugPrint('Firebase codeSent: verificationId received');
+          _verificationId = verificationId;
+          _resendToken = resendToken;
+          debugPrint(
+            'Verification ID available after codeSent: ${_verificationId != null}',
+          );
 
-    final verificationId = await completer.future;
+          if (!completer.isCompleted) {
+            completer.complete(verificationId);
+          }
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {
+          debugPrint('Firebase codeAutoRetrievalTimeout');
+          _verificationId = verificationId;
 
-    debugPrint('requestOtp completed');
-    debugPrint(
-      'Final verification ID available: ${_verificationId != null}',
-    );
+          if (!completer.isCompleted) {
+            completer.complete(verificationId);
+          }
+        },
+      );
 
-    return verificationId;
+      final verificationId = await completer.future.timeout(
+        const Duration(seconds: 60),
+        onTimeout: () {
+          throw TimeoutException('OTP request timed out. Please check your connection and try again.');
+        },
+      );
+
+      debugPrint('requestOtp completed');
+      debugPrint(
+        'Final verification ID available: ${_verificationId != null}',
+      );
+
+      return verificationId;
+    } finally {
+      _isRequestingOtp = false;
+    }
   }
 
   Future<bool> verifyOtp(String username, String mobile, String otp, String expectedRole) async {
     debugPrint(
         'Verification ID available before verifyOtp: ${_verificationId != null}');
     if (_verificationId == null) {
-      throw Exception('OTP verification session not found');
+      throw Exception('OTP verification session not found. Please request an OTP first.');
     }
 
     debugPrint('Using verificationId: true');
     debugPrint('OTP length: ${otp.length}');
 
-    final credential = PhoneAuthProvider.credential(
-      verificationId: _verificationId!,
-      smsCode: otp,
-    );
+    User? user = _auth.currentUser;
 
-    UserCredential userCredential;
-    try {
-      userCredential = await _auth.signInWithCredential(credential);
-    } on FirebaseAuthException catch (e) {
-      debugPrint('Firebase OTP verification failed: ${e.code}');
-      debugPrint('Firebase OTP error message: ${e.message}');
-      rethrow;
+    if (user == null || _verificationId != 'auto_verified') {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: _verificationId!,
+        smsCode: otp,
+      );
+
+      final userCredential = await _auth.signInWithCredential(credential);
+      user = userCredential.user;
     }
-
-    final user = userCredential.user;
 
     if (user != null) {
       final idToken = await user.getIdToken();
@@ -117,19 +135,22 @@ class AuthService {
         final accessToken = data['access_token'];
         final role = data['role'];
         if (role != expectedRole) {
-          await _auth.signOut();
-          throw Exception("Unauthorized role. Access denied.");
+          await logout();
+          throw Exception("Unauthorized role ($role). Access denied.");
         }
         await LocalStorage.saveToken(accessToken);
         await LocalStorage.saveRole(role);
         return true;
       } else {
-        debugPrint('Backend authentication failed');
-        debugPrint('Status: ${response.statusCode}');
-        debugPrint('Response: ${response.body}');
-
-        await _auth.signOut();
-        throw Exception("Backend authentication failed.");
+        await logout();
+        String errorMsg = "Backend authentication failed.";
+        try {
+          final errorData = jsonDecode(response.body);
+          if (errorData['detail'] != null) {
+            errorMsg = errorData['detail'].toString();
+          }
+        } catch (_) {}
+        throw Exception(errorMsg);
       }
     }
 
@@ -137,11 +158,27 @@ class AuthService {
   }
 
   Future<void> logout() async {
-    await _auth.signOut();
+    try {
+      await _auth.signOut();
+    } catch (e) {
+      debugPrint('Error during Firebase signOut: $e');
+    }
     await LocalStorage.clearToken();
   }
 
   Future<bool> isAuthenticated() async {
-    return _auth.currentUser != null;
+    final hasFirebase = _auth.currentUser != null;
+    final hasBackendSession = await LocalStorage.hasSession();
+    final role = await LocalStorage.getRole();
+
+    if (hasFirebase && hasBackendSession && role != null) {
+      return true;
+    }
+
+    // Clean up inconsistent session
+    if (hasFirebase || hasBackendSession) {
+      await logout();
+    }
+    return false;
   }
 }

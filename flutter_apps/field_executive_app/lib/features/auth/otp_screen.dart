@@ -43,25 +43,17 @@ class _OtpScreenState extends State<OtpScreen> {
         if (success && mounted) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) {
-              if (widget.selectedRole == 'field_executive') {
-                return const DashboardScreen();
-              }
-              // Placeholder for other roles until integrated
-              return Scaffold(
-                appBar: AppBar(title: const Text('Module Not Integrated')),
-                body: const Center(child: Text('This module will be integrated shortly.')),
-              );
-            }),
+            MaterialPageRoute(builder: (context) => const DashboardScreen()),
             (route) => false,
           );
         }
       } catch (e) {
         debugPrint('OtpScreen caught error: $e');
         if (mounted) {
+          final message = e.toString().replaceFirst('Exception: ', '');
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Invalid or expired OTP. Please try again.'),
+            SnackBar(
+              content: Text(message.isNotEmpty ? message : 'Invalid or expired OTP. Please try again.'),
               backgroundColor: Colors.red,
             ),
           );
@@ -93,9 +85,10 @@ class _OtpScreenState extends State<OtpScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final message = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to resend OTP. Please wait a moment.'),
+          SnackBar(
+            content: Text(message.isNotEmpty ? message : 'Failed to resend OTP. Please wait a moment.'),
             backgroundColor: Colors.red,
           ),
         );

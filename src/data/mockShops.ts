@@ -14,11 +14,15 @@ export interface Shop {
   assignedExecutiveId: string;
   assignedExecutiveName: string;
   totalOrdersCount: number;
-  totalBagsReceived: number;
-  pendingDeliveryBags: number;
+  totalKgReceived?: number;
+  pendingDeliveryKg?: number;
+  openingStockKg?: number;
+  currentStockKg?: number;
+  totalBagsReceived?: number;
+  pendingDeliveryBags?: number;
+  openingStockBags?: number;
+  currentStockBags?: number;
   lastVisitDate: string;
-  openingStockBags: number;
-  currentStockBags: number;
   primaryCropDemand: string;
 }
 
@@ -39,11 +43,11 @@ export const MOCK_SHOPS: Shop[] = [
     assignedExecutiveId: 'emp-2',
     assignedExecutiveName: 'Suresh Babu',
     totalOrdersCount: 28,
-    totalBagsReceived: 820,
-    pendingDeliveryBags: 45,
+    totalKgReceived: 820, totalBagsReceived: 820,
+    pendingDeliveryKg: 45, pendingDeliveryBags: 45,
     lastVisitDate: '2026-09-21',
-    openingStockBags: 450,
-    currentStockBags: 380,
+    openingStockKg: 450, openingStockBags: 450,
+    currentStockKg: 380, currentStockBags: 380,
     primaryCropDemand: 'Chilli, Cotton, Okra'
   },
   {
@@ -62,11 +66,11 @@ export const MOCK_SHOPS: Shop[] = [
     assignedExecutiveId: 'emp-1',
     assignedExecutiveName: 'Ramesh Kumar',
     totalOrdersCount: 34,
-    totalBagsReceived: 1250,
-    pendingDeliveryBags: 60,
+    totalKgReceived: 1250, totalBagsReceived: 1250,
+    pendingDeliveryKg: 60, pendingDeliveryBags: 60,
     lastVisitDate: '2026-09-22',
-    openingStockBags: 500,
-    currentStockBags: 420,
+    openingStockKg: 500, openingStockBags: 500,
+    currentStockKg: 420, currentStockBags: 420,
     primaryCropDemand: 'Maize, Pulses, Okra'
   },
   {
@@ -85,11 +89,11 @@ export const MOCK_SHOPS: Shop[] = [
     assignedExecutiveId: 'emp-2',
     assignedExecutiveName: 'Suresh Babu',
     totalOrdersCount: 19,
-    totalBagsReceived: 690,
-    pendingDeliveryBags: 20,
+    totalKgReceived: 690, totalBagsReceived: 690,
+    pendingDeliveryKg: 20, pendingDeliveryBags: 20,
     lastVisitDate: '2026-09-20',
-    openingStockBags: 300,
-    currentStockBags: 180,
+    openingStockKg: 300, openingStockBags: 300,
+    currentStockKg: 180, currentStockBags: 180,
     primaryCropDemand: 'Chilli, Tomato, Bhendi'
   },
   {
@@ -108,11 +112,11 @@ export const MOCK_SHOPS: Shop[] = [
     assignedExecutiveId: 'emp-3',
     assignedExecutiveName: 'Vikram Reddy',
     totalOrdersCount: 22,
-    totalBagsReceived: 780,
-    pendingDeliveryBags: 35,
+    totalKgReceived: 780, totalBagsReceived: 780,
+    pendingDeliveryKg: 35, pendingDeliveryBags: 35,
     lastVisitDate: '2026-09-22',
-    openingStockBags: 400,
-    currentStockBags: 210,
+    openingStockKg: 400, openingStockBags: 400,
+    currentStockKg: 210, currentStockBags: 210,
     primaryCropDemand: 'Paddy, Black Gram, Maize'
   },
   {
@@ -131,11 +135,11 @@ export const MOCK_SHOPS: Shop[] = [
     assignedExecutiveId: 'emp-4',
     assignedExecutiveName: 'Mahesh Yadav',
     totalOrdersCount: 41,
-    totalBagsReceived: 1600,
-    pendingDeliveryBags: 80,
+    totalKgReceived: 1600, totalBagsReceived: 1600,
+    pendingDeliveryKg: 80, pendingDeliveryBags: 80,
     lastVisitDate: '2026-09-18',
-    openingStockBags: 200,
-    currentStockBags: 80,
+    openingStockKg: 200, openingStockBags: 200,
+    currentStockKg: 80, currentStockBags: 80,
     primaryCropDemand: 'Hybrid Chilli, Dolichos'
   },
   {
@@ -154,11 +158,11 @@ export const MOCK_SHOPS: Shop[] = [
     assignedExecutiveId: 'emp-2',
     assignedExecutiveName: 'Suresh Babu',
     totalOrdersCount: 12,
-    totalBagsReceived: 420,
-    pendingDeliveryBags: 0,
+    totalKgReceived: 420, totalBagsReceived: 420,
+    pendingDeliveryKg: 0, pendingDeliveryBags: 0,
     lastVisitDate: '2026-08-30',
-    openingStockBags: 600,
-    currentStockBags: 420,
+    openingStockKg: 600, openingStockBags: 600,
+    currentStockKg: 420, currentStockBags: 420,
     primaryCropDemand: 'Groundnut, Cotton'
   },
   {
@@ -177,11 +181,11 @@ export const MOCK_SHOPS: Shop[] = [
     assignedExecutiveId: 'emp-7',
     assignedExecutiveName: 'Anil Varma',
     totalOrdersCount: 30,
-    totalBagsReceived: 980,
-    pendingDeliveryBags: 50,
+    totalKgReceived: 980, totalBagsReceived: 980,
+    pendingDeliveryKg: 50, pendingDeliveryBags: 50,
     lastVisitDate: '2026-09-21',
-    openingStockBags: 350,
-    currentStockBags: 240,
+    openingStockKg: 350, openingStockBags: 350,
+    currentStockKg: 240, currentStockBags: 240,
     primaryCropDemand: 'Paddy, Maize, Black Gram'
   }
 ];

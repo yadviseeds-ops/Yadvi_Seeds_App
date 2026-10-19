@@ -50,10 +50,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     try {
       final token = await LocalStorage.getToken();
       if (token == null) return;
-      
+
       final wsUrl = Uri.parse('${AppConfig.wsBaseUrl}/api/v1/ws/live-tracking?token=$token');
       _channel = WebSocketChannel.connect(wsUrl);
-      
+
       _channel!.stream.listen((message) {
         try {
           final data = jsonDecode(message);
@@ -162,7 +162,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Order Info Card
               Container(
                 width: double.infinity,
@@ -196,11 +196,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                     Row(
                       children: [
                         const Text(
-                          'Volume: ',
+                          'Total Weight: ',
                           style: TextStyle(color: Colors.white70, fontSize: 14),
                         ),
                         Text(
-                          '${_currentOrder.totalQuantityBags} Bags',
+                          '${_currentOrder.totalQuantityKg.toStringAsFixed(_currentOrder.totalQuantityKg.truncateToDouble() == _currentOrder.totalQuantityKg ? 0 : 2)} kg',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 14,
@@ -213,7 +213,89 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              
+
+              // Items Card
+              if (_currentOrder.items.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Ordered Varieties',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          Text(
+                            '${_currentOrder.items.length} varieties',
+                            style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Divider(),
+                      ..._currentOrder.items.map((it) {
+                        final displayQty = it.quantity.truncateToDouble() == it.quantity
+                            ? it.quantity.toInt().toString()
+                            : it.quantity.toString();
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      it.productName,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    ),
+                                    if (it.packageSize.isNotEmpty)
+                                      Text(
+                                        'Pack: ${it.packageSize}',
+                                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.green.shade200),
+                                ),
+                                child: Text(
+                                  '$displayQty ${it.unit}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: Colors.green.shade800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
               // Timeline Card
               Container(
                 padding: const EdgeInsets.all(20),
@@ -238,9 +320,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // LR Card
               if (_currentOrder.lrNumber != null && _currentOrder.lrNumber!.isNotEmpty)
                 Container(
@@ -317,7 +399,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
   Widget _buildTimeline() {
     final stepIndex = _getStatusStepIndex(_currentOrder.status);
-    
+
     return Column(
       children: [
         _buildTimelineStep(

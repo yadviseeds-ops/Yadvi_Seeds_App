@@ -22,6 +22,7 @@ export interface FieldVisit {
   photoLat?: number;
   photoLng?: number;
   orderCollectedNumber?: string;
+  quantityBookedKg?: number;
   bagsOrdered?: number;
   farmerFeedback?: string;
 }
@@ -40,10 +41,10 @@ export const MOCK_VISITS: FieldVisit[] = [
     visitedAt: '09:40 AM',
     status: 'Visited',
     purpose: 'Stock Audit & Order Booking',
-    notes: 'Shop owner expressed huge demand for YHS-678 Maize ahead of monsoon showers. Stock audited: 420 bags intact.',
+    notes: 'Shop owner expressed huge demand for YHS-678 Maize ahead of monsoon showers. Stock audited: 420 kg intact.',
     photoUrl: '/seeds/seed_04.jpeg',
     orderCollectedNumber: 'ORD-1024',
-    bagsOrdered: 35,
+    quantityBookedKg: 35, bagsOrdered: 35,
     farmerFeedback: 'Farmers requesting larger 25kg packaging for commercial growers'
   },
   {
@@ -62,7 +63,7 @@ export const MOCK_VISITS: FieldVisit[] = [
     notes: 'Demonstrated Krishna-5 Chilli sample packets. High interest in disease tolerance. Placed fresh bulk order.',
     photoUrl: '/seeds/seed_12.jpeg',
     orderCollectedNumber: 'ORD-1025',
-    bagsOrdered: 25,
+    quantityBookedKg: 25, bagsOrdered: 25,
     farmerFeedback: 'Positive feedback on germination rates of previous batch'
   },
   {
@@ -81,7 +82,7 @@ export const MOCK_VISITS: FieldVisit[] = [
     notes: 'Stock verified for YH-222 Bhendi and Black Gram. Consignment delivered yesterday is in good condition.',
     photoUrl: '/seeds/seed_07.jpeg',
     orderCollectedNumber: 'ORD-1022',
-    bagsOrdered: 25,
+    quantityBookedKg: 25, bagsOrdered: 25,
     farmerFeedback: 'Paddy growers asking for YHS-9303'
   },
   {

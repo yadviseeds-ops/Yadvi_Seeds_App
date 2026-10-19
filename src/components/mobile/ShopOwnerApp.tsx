@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppState } from '../../context/AppStateContext';
 import { SeedProduct } from '../../data/seedProducts';
+import { Order } from '../../data/mockOrders';
 import { DeviceFrame } from './DeviceFrame';
 import confetti from 'canvas-confetti';
 import {
@@ -22,8 +23,41 @@ import {
   Sparkles,
   ChevronRight,
   Share2,
-  LogOut
+  LogOut,
+  FileText,
+  X,
+  Calendar,
+  Hash,
+  Scale,
+  Building2
 } from 'lucide-react';
+
+export const formatOrderDateTime = (dateStr?: string) => {
+  if (!dateStr) return { date: 'N/A', time: '', full: 'N/A' };
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+      return { date: dateStr, time: '', full: dateStr };
+    }
+    const dateFormatted = d.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+    const timeFormatted = d.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    return {
+      date: dateFormatted,
+      time: timeFormatted,
+      full: `${dateFormatted}, ${timeFormatted}`
+    };
+  } catch (e) {
+    return { date: dateStr, time: '', full: dateStr };
+  }
+};
 
 export const ShopOwnerApp: React.FC = () => {
   const {
@@ -43,14 +77,17 @@ export const ShopOwnerApp: React.FC = () => {
   } = useAppState();
 
   const currentShopName = authenticatedUser?.metadata?.shop_name || 'My Shop';
-  const currentDealerCode = authenticatedUser?.metadata?.dealer_code || 'YHS-DLR-XXX';
   const currentOwnerName = authenticatedUser?.full_name || 'Shop Owner';
 
   const [activeNav, setActiveNav] = useState<'home' | 'products' | 'cart' | 'orders' | 'tracking' | 'profile'>('home');
   const [selectedProduct, setSelectedProduct] = useState<SeedProduct | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchTerm, setSearchTerm] = useState('');
-  const [orderPlacedSuccess, setOrderPlacedSuccess] = useState<any | null>(null);
+  const [orderPlacedSuccess, setOrderPlacedSuccess] = useState<Order | any | null>(null);
+  const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState<Order | null>(null);
+  const [modalQuantity, setModalQuantity] = useState<number>(5);
+  const [modalUnit, setModalUnit] = useState<'kg' | 'g'>('kg');
+  const [modalPkgSize, setModalPkgSize] = useState<string>('');
 
   // Filter products for Shop Owner
   const filteredProducts = products.filter((p) => {
@@ -61,8 +98,17 @@ export const ShopOwnerApp: React.FC = () => {
     return matchesCategory && matchesSearch;
   });
 
-  const shopOrders = orders.filter((o) => o.shopName.includes(currentShopName) || true); // Backend should already filter it, but we can keep logic.
-  const totalCartBags = cart.reduce((sum, item) => sum + item.quantityBags, 0);
+  // Strict shop owner order filtering
+  const shopOrders = orders.filter((o) => {
+    if (authenticatedUser?.metadata?.shop_id) {
+      return String(o.shopId) === String(authenticatedUser.metadata.shop_id);
+    }
+    return (
+      o.shopName.toLowerCase().includes(currentShopName.toLowerCase()) ||
+      currentShopName.toLowerCase().includes(o.shopName.toLowerCase())
+    );
+  });
+  const totalCartKg = cart.reduce((sum, item) => sum + (item.unit === 'g' ? item.quantity / 1000 : item.quantity), 0);
 
   const handlePlaceOrder = async () => {
     if (cart.length === 0) return;
@@ -82,8 +128,9 @@ export const ShopOwnerApp: React.FC = () => {
       const createdOrder = await placeOrder('Direct booking from Shop Owner App');
       setOrderPlacedSuccess(createdOrder);
       setSelectedOrderForTrack(createdOrder);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error placing order:', err);
+      alert(err?.message || 'Failed to place seed order. Please check item quantities and try again.');
     }
   };
 
@@ -97,7 +144,7 @@ export const ShopOwnerApp: React.FC = () => {
           </div>
           <div>
             <div className="font-bold text-xs leading-none">{currentShopName}</div>
-            <div className="text-[10px] text-emerald-200/80 mt-0.5">Dealer Code: {currentDealerCode}</div>
+            <div className="text-[10px] text-emerald-200/80 mt-0.5">{currentOwnerName}</div>
           </div>
         </div>
 
@@ -232,7 +279,7 @@ export const ShopOwnerApp: React.FC = () => {
                     <div className="mt-2">
                       <div className="font-bold text-[11px] text-slate-900 leading-tight truncate">{p.name}</div>
                       <div className="text-[9px] text-slate-400 font-mono mt-0.5">{p.sku}</div>
-                      <div className="text-[10px] font-bold text-emerald-700 mt-1">Stock: {p.stockBags} Bags</div>
+                      <div className="text-[10px] font-bold text-emerald-700 mt-1">Stock: {p.stockKg ?? 0} kg</div>
                     </div>
                   </div>
                 ))}
@@ -309,16 +356,18 @@ export const ShopOwnerApp: React.FC = () => {
                     </div>
 
                     <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-700">Stock: {p.stockBags} Bags</span>
+                      <span className="text-[10px] font-bold text-slate-700">Stock: {p.stockKg ?? 0} kg</span>
                       <button
                         onClick={() => {
-                          addToCart(p, p.packageSizes[0] || 'Standard Pouch', 5);
-                          alert(`Added 5 bags of ${p.name} to cart!`);
+                          setSelectedProduct(p);
+                          setModalQuantity(5);
+                          setModalUnit('kg');
+                          setModalPkgSize(p.packageSizes[0] || 'Standard Pack');
                         }}
                         className="px-3 py-1 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-[10px] font-bold transition flex items-center gap-1 shadow-xs cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
-                        <span>Add to Cart</span>
+                        <span>Select Qty</span>
                       </button>
                     </div>
                   </div>
@@ -337,59 +386,123 @@ export const ShopOwnerApp: React.FC = () => {
             </div>
 
             {orderPlacedSuccess ? (
-              /* Order Confirmation matching requirements */
-              <div className="bg-white rounded-2xl border border-emerald-300 p-6 text-center space-y-4 shadow-md animate-scale-in">
-                <div className="w-14 h-14 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle className="w-8 h-8" />
+              /* Enhanced Order Confirmation matching requirements */
+              <div className="bg-white rounded-2xl border border-emerald-300 p-5 text-center space-y-4 shadow-md animate-scale-in">
+                <div className="w-13 h-13 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle className="w-7 h-7" />
                 </div>
                 <div>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 block">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">
                     Submission Confirmed
                   </span>
-                  <h4 className="text-lg font-black text-slate-900 mt-0.5">ORDER PLACED SUCCESSFULLY</h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Order <b>{orderPlacedSuccess.orderNumber}</b> dispatched to Yadvi Central Fulfillment.
+                  <h4 className="text-base font-black text-slate-900 mt-0.5">ORDER PLACED SUCCESSFULLY</h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Order <b className="font-mono text-emerald-800">{orderPlacedSuccess.orderNumber}</b> booked with Yadvi Central Fulfillment.
                   </p>
                 </div>
 
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-left space-y-1.5 font-mono">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Order ID:</span>
-                    <span className="font-bold text-emerald-800">{orderPlacedSuccess.orderNumber}</span>
+                {/* Key Invoice Summary Card */}
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-left space-y-2">
+                  <div className="flex justify-between items-center border-b border-slate-200/80 pb-2">
+                    <span className="text-slate-500 flex items-center gap-1">
+                      <Hash className="w-3.5 h-3.5 text-slate-400" /> Invoice / Order Ref:
+                    </span>
+                    <span className="font-mono font-black text-emerald-800 text-xs">{orderPlacedSuccess.orderNumber}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Shop:</span>
-                    <span className="font-bold text-slate-800">{orderPlacedSuccess.shopName}</span>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" /> Date & Time:
+                    </span>
+                    <span className="font-medium text-slate-800 text-[11px]">
+                      {formatOrderDateTime(orderPlacedSuccess.orderDate).full}
+                    </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Total Seed Bags:</span>
-                    <span className="font-bold text-slate-800">{orderPlacedSuccess.totalQuantityBags} Bags</span>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 flex items-center gap-1">
+                      <Building2 className="w-3.5 h-3.5 text-slate-400" /> Shop / Consignee:
+                    </span>
+                    <span className="font-bold text-slate-800 truncate max-w-[160px] text-right">
+                      {orderPlacedSuccess.shopName}
+                    </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Status:</span>
-                    <span className="text-emerald-700 font-bold">New (Synced)</span>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 flex items-center gap-1">
+                      <Scale className="w-3.5 h-3.5 text-slate-400" /> Total Volume:
+                    </span>
+                    <span className="font-mono font-black text-slate-900">
+                      {orderPlacedSuccess.totalQuantityKg ?? 0} kg
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Order Status:</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                      {orderPlacedSuccess.status || 'New'} (Saved)
+                    </span>
+                  </div>
+
+                  {/* Itemized preview */}
+                  <div className="pt-2 border-t border-slate-200/80">
+                    <div className="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                      <span>Ordered Varieties ({orderPlacedSuccess.items?.length || 0}):</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Grams (g) / Kilograms (kg)</span>
+                    </div>
+                    <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                      {(orderPlacedSuccess.items || []).map((item: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center text-[11px] bg-white p-1.5 rounded border border-slate-100">
+                          <span className="text-slate-800 font-medium truncate max-w-[160px]">
+                            {item.productName || item.product_name}
+                            <span className="text-[10px] text-slate-400 block font-normal">
+                              {item.packageSize || item.package_size || 'Standard'}
+                            </span>
+                          </span>
+                          <span className="font-mono font-bold text-emerald-800 shrink-0">
+                            {item.quantity} {item.unit || 'kg'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-1.5 text-[10px] text-slate-400 italic">
+                    * Official GST Invoice & LR docket will accompany consignment dispatch.
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 pt-1">
                   <button
                     onClick={() => {
-                      setOrderPlacedSuccess(null);
-                      setActiveNav('tracking');
+                      setSelectedOrderForInvoice(orderPlacedSuccess);
                     }}
-                    className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs shadow transition cursor-pointer"
+                    className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs shadow transition flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    Track Shipment Status →
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>View Complete Invoice Details</span>
                   </button>
-                  <button
-                    onClick={() => {
-                      setOrderPlacedSuccess(null);
-                      setActiveNav('products');
-                    }}
-                    className="w-full py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 transition"
-                  >
-                    Order More Seeds
-                  </button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => {
+                        setOrderPlacedSuccess(null);
+                        setActiveNav('orders');
+                      }}
+                      className="py-2 bg-slate-100 text-slate-800 font-bold rounded-xl text-xs hover:bg-slate-200 transition"
+                    >
+                      My Seed Orders
+                    </button>
+                    <button
+                      onClick={() => {
+                        setOrderPlacedSuccess(null);
+                        setActiveNav('products');
+                      }}
+                      className="py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 transition"
+                    >
+                      Order More Seeds
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : cart.length === 0 ? (
@@ -430,16 +543,24 @@ export const ShopOwnerApp: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
                           <button
-                            onClick={() => updateCartQuantity(item.product.id, item.quantityBags - 1)}
+                            onClick={() => {
+                              const step = item.unit === 'g' ? 50 : 1;
+                              if (item.quantity - step > 0) {
+                                updateCartQuantity(item.product.id, Math.round((item.quantity - step) * 100) / 100);
+                              }
+                            }}
                             className="p-1 hover:bg-slate-200 text-slate-600"
                           >
                             <Minus className="w-3 h-3" />
                           </button>
                           <span className="px-2 text-xs font-bold font-mono text-slate-900">
-                            {item.quantityBags}
+                            {item.quantity} {item.unit}
                           </span>
                           <button
-                            onClick={() => updateCartQuantity(item.product.id, item.quantityBags + 1)}
+                            onClick={() => {
+                              const step = item.unit === 'g' ? 50 : 1;
+                              updateCartQuantity(item.product.id, Math.round((item.quantity + step) * 100) / 100);
+                            }}
                             className="p-1 hover:bg-slate-200 text-slate-600"
                           >
                             <Plus className="w-3 h-3" />
@@ -457,7 +578,7 @@ export const ShopOwnerApp: React.FC = () => {
                   ))}
                 </div>
 
-                {/* Order Summary (Strictly Bags, NO Price) */}
+                {/* Order Summary (Strictly Volume in kg, NO Price) */}
                 <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2 text-xs">
                   <div className="font-bold text-slate-900 border-b border-slate-100 pb-2">Indent Summary</div>
                   <div className="flex justify-between text-slate-600">
@@ -466,7 +587,7 @@ export const ShopOwnerApp: React.FC = () => {
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>Total Consignment Volume:</span>
-                    <span className="font-mono font-bold text-emerald-800 text-sm">{totalCartBags} Bags</span>
+                    <span className="font-mono font-bold text-emerald-800 text-sm">{Number(totalCartKg.toFixed(3))} kg</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>Destination Shop:</span>
@@ -479,7 +600,7 @@ export const ShopOwnerApp: React.FC = () => {
                       className="w-full py-3 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <CheckCircle className="w-4 h-4 text-emerald-300" />
-                      <span>Place Seed Order ({totalCartBags} Bags)</span>
+                      <span>Place Seed Order ({Number(totalCartKg.toFixed(3))} kg)</span>
                     </button>
                   </div>
                 </div>
@@ -491,49 +612,112 @@ export const ShopOwnerApp: React.FC = () => {
         {/* ================= TAB 4: MY ORDERS ================= */}
         {activeNav === 'orders' && (
           <div className="p-4 space-y-3">
-            <h3 className="font-bold text-sm text-slate-900">My Seed Orders ({shopOrders.length})</h3>
-
-            <div className="space-y-3">
-              {shopOrders.map((ord) => (
-                <div
-                  key={ord.id}
-                  onClick={() => {
-                    setSelectedOrderForTrack(ord);
-                    setActiveNav('tracking');
-                  }}
-                  className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs space-y-2 cursor-pointer hover:border-emerald-500 transition"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-black text-xs text-emerald-800">{ord.orderNumber}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        ord.status === 'New'
-                          ? 'bg-amber-100 text-amber-800'
-                          : ord.status === 'Dispatched' || ord.status === 'In Transit'
-                          ? 'bg-blue-100 text-blue-800'
-                          : ord.status === 'Delivered'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {ord.status}
-                    </span>
-                  </div>
-
-                  <div className="text-xs text-slate-600 flex justify-between">
-                    <span>{ord.totalItemsCount} Seed Varieties</span>
-                    <span className="font-mono font-bold text-slate-900">{ord.totalQuantityBags} Bags</span>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-                    <span>{ord.orderDate}</span>
-                    <span className="font-bold text-emerald-700 flex items-center gap-0.5">
-                      Track LR <ChevronRight className="w-3 h-3" />
-                    </span>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm text-slate-900">My Seed Orders</h3>
+                <p className="text-[11px] text-slate-500">Official consignment bookings for {currentShopName}</p>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono font-bold text-xs">
+                {shopOrders.length} Orders
+              </span>
             </div>
+
+            {shopOrders.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3 shadow-xs">
+                <Package className="w-10 h-10 text-slate-300 mx-auto" />
+                <h4 className="font-bold text-xs text-slate-700">No Orders Placed Yet</h4>
+                <p className="text-[11px] text-slate-400">
+                  Select Yadvi hybrid seeds from the catalog to submit your first dealer indent.
+                </p>
+                <button
+                  onClick={() => setActiveNav('products')}
+                  className="px-4 py-2 bg-emerald-800 text-white font-bold rounded-xl text-xs shadow transition"
+                >
+                  Browse Hybrid Seeds
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {shopOrders.map((ord) => {
+                  const dt = formatOrderDateTime(ord.orderDate);
+                  return (
+                    <div
+                      key={ord.id}
+                      className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs space-y-2.5 hover:border-emerald-500 transition"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-black text-xs text-emerald-800">{ord.orderNumber}</span>
+                          <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            {dt.time || dt.date}
+                          </span>
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            ord.status === 'New'
+                              ? 'bg-amber-100 text-amber-800'
+                              : ord.status === 'Dispatched' || ord.status === 'In Transit'
+                              ? 'bg-blue-100 text-blue-800'
+                              : ord.status === 'Delivered'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {ord.status}
+                        </span>
+                      </div>
+
+                      {/* Item Preview list */}
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 space-y-1">
+                        <div className="text-[10px] font-bold text-slate-500 flex justify-between">
+                          <span>Items ({ord.items?.length || ord.totalItemsCount || 0} varieties):</span>
+                          <span className="font-mono text-slate-700 font-bold">{ord.totalQuantityKg ?? 0} kg Total</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {(ord.items || []).slice(0, 3).map((item, idx) => (
+                            <span
+                              key={idx}
+                              className="px-1.5 py-0.5 bg-white rounded border border-slate-200 text-[10px] text-slate-700 font-medium truncate max-w-[150px]"
+                            >
+                              {item.productName}: <b>{item.quantity} {item.unit || 'kg'}</b>
+                            </span>
+                          ))}
+                          {(ord.items?.length || 0) > 3 && (
+                            <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded text-[10px]">
+                              +{ord.items.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400 text-[10px]">{dt.date}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedOrderForInvoice(ord)}
+                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg font-bold text-[10px] flex items-center gap-1 transition cursor-pointer"
+                          >
+                            <FileText className="w-3 h-3" />
+                            <span>View Details</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedOrderForTrack(ord);
+                              setActiveNav('tracking');
+                            }}
+                            className="px-2 py-1 text-slate-600 hover:text-emerald-800 font-bold text-[10px] flex items-center gap-0.5 transition cursor-pointer"
+                          >
+                            <span>Track</span>
+                            <ChevronRight className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -548,7 +732,7 @@ export const ShopOwnerApp: React.FC = () => {
                   <div className="text-[10px] text-emerald-200 font-mono">ORDER #{selectedOrderForTrack.orderNumber}</div>
                   <div className="font-bold text-sm mt-0.5">{selectedOrderForTrack.shopName}</div>
                   <div className="text-xs text-emerald-100/80 mt-1">
-                    Volume: <b>{selectedOrderForTrack.totalQuantityBags} Bags</b>
+                    Volume: <b>{selectedOrderForTrack.totalQuantityKg ?? 0} kg</b>
                   </div>
                   {selectedOrderForTrack.lrNumber && (
                     <div className="mt-2 pt-2 border-t border-emerald-800/80 flex items-center justify-between text-xs">
@@ -698,20 +882,270 @@ export const ShopOwnerApp: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Available Stock:</span>
-                  <span className="font-mono font-bold text-slate-900">{selectedProduct.stockBags} Bags</span>
+                  <span className="font-mono font-bold text-slate-900">{selectedProduct.stockKg ?? 0} kg</span>
+                </div>
+              </div>
+
+              {/* Package size selection */}
+              {selectedProduct.packageSizes && selectedProduct.packageSizes.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700">Package Size:</label>
+                  <select
+                    value={modalPkgSize || selectedProduct.packageSizes[0]}
+                    onChange={(e) => setModalPkgSize(e.target.value)}
+                    className="w-full text-xs font-semibold p-2 border border-slate-200 rounded-lg bg-white"
+                  >
+                    {selectedProduct.packageSizes.map((sz) => (
+                      <option key={sz} value={sz}>{sz}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Quantity and Unit Input */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700">Order Quantity & Unit:</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="0.1"
+                    step={modalUnit === 'g' ? '50' : '0.5'}
+                    value={modalQuantity}
+                    onChange={(e) => setModalQuantity(parseFloat(e.target.value) || 0)}
+                    className="flex-1 text-xs font-bold p-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    placeholder="Enter quantity"
+                  />
+                  <div className="flex border border-slate-200 rounded-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setModalUnit('kg')}
+                      className={`px-3 text-xs font-bold transition ${modalUnit === 'kg' ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}
+                    >
+                      kg
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalUnit('g')}
+                      className={`px-3 text-xs font-bold transition ${modalUnit === 'g' ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}
+                    >
+                      g
+                    </button>
+                  </div>
                 </div>
               </div>
 
               <button
+                disabled={modalQuantity <= 0}
                 onClick={() => {
-                  addToCart(selectedProduct, selectedProduct.packageSizes[0] || 'Pouch', 5);
+                  if (modalQuantity <= 0) return;
+                  addToCart(selectedProduct, modalPkgSize || selectedProduct.packageSizes[0] || 'Standard Pack', modalQuantity, modalUnit);
                   setSelectedProduct(null);
                   setActiveNav('cart');
                 }}
-                className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs shadow transition flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>Add 5 Bags to Cart</span>
+                <span>Add {modalQuantity > 0 ? `${modalQuantity} ${modalUnit}` : ''} to Cart</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Invoice Details Modal */}
+      {selectedOrderForInvoice && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-sm w-full max-h-[92vh] flex flex-col shadow-2xl border border-emerald-900/20 overflow-hidden animate-scale-in">
+            {/* Modal Header */}
+            <div className="bg-[#0b3b2c] text-white p-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-700/80 flex items-center justify-center border border-emerald-500/30">
+                  <Sprout className="w-4 h-4 text-emerald-300" />
+                </div>
+                <div>
+                  <h3 className="font-black text-xs leading-none">ORDER INVOICE DETAILS</h3>
+                  <div className="text-[10px] text-emerald-200/90 font-mono mt-0.5">
+                    {selectedOrderForInvoice.orderNumber}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedOrderForInvoice(null)}
+                className="w-7 h-7 rounded-full bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body - Scrollable */}
+            <div className="p-4 overflow-y-auto space-y-3.5 text-xs">
+              {/* Order Meta Bar */}
+              <div className="bg-emerald-50/70 border border-emerald-200/70 rounded-xl p-3 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-[11px] text-emerald-900 font-semibold">Consignment Invoice #:</span>
+                  <span className="font-mono font-black text-xs text-emerald-900">
+                    {selectedOrderForInvoice.orderNumber}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-600">Booking Date & Time:</span>
+                  <span className="font-medium text-slate-900">
+                    {formatOrderDateTime(selectedOrderForInvoice.orderDate).full}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-600">Order Channel:</span>
+                  <span className="font-medium text-slate-800">{selectedOrderForInvoice.source || 'Shop Owner App'}</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-600">Consignment Status:</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      selectedOrderForInvoice.status === 'New'
+                        ? 'bg-amber-100 text-amber-800'
+                        : selectedOrderForInvoice.status === 'Dispatched' || selectedOrderForInvoice.status === 'In Transit'
+                        ? 'bg-blue-100 text-blue-800'
+                        : selectedOrderForInvoice.status === 'Delivered'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {selectedOrderForInvoice.status}
+                  </span>
+                </div>
+              </div>
+
+              {/* Consignee / Shop Information */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5">
+                <div className="text-[11px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1 border-b border-slate-200 pb-1">
+                  <Building2 className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Consignee Details</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Shop Name</span>
+                    <span className="font-bold text-slate-800">{selectedOrderForInvoice.shopName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Proprietor / Contact</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedOrderForInvoice.ownerName || currentOwnerName}
+                    </span>
+                  </div>
+                </div>
+                <div className="pt-1 text-[11px]">
+                  <span className="text-slate-400 block text-[10px]">Delivery Address & Location</span>
+                  <span className="text-slate-700">
+                    {selectedOrderForInvoice.deliveryAddress || selectedOrderForInvoice.shopLocation || 'Guntur Seed Market Yard'}
+                  </span>
+                </div>
+                {selectedOrderForInvoice.contactPhone && (
+                  <div className="pt-0.5 text-[11px]">
+                    <span className="text-slate-400 block text-[10px]">Phone</span>
+                    <span className="font-mono text-slate-700">{selectedOrderForInvoice.contactPhone}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Ordered Products Table */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="bg-slate-100/90 px-3 py-2 border-b border-slate-200 flex justify-between items-center">
+                  <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
+                    <Package className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Ordered Hybrid Varieties</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500 font-bold">
+                    {selectedOrderForInvoice.items?.length || 0} Items
+                  </span>
+                </div>
+
+                <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                  {(selectedOrderForInvoice.items || []).map((item, idx) => (
+                    <div key={idx} className="p-2.5 flex items-center justify-between gap-2 hover:bg-slate-50 transition">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-xs text-slate-900 truncate">
+                          {item.productName}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2 mt-0.5">
+                          <span>Pack: {item.packageSize || 'Standard'}</span>
+                          {item.sku && <span>SKU: {item.sku}</span>}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-mono font-black text-xs text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
+                          {item.quantity} {item.unit || 'kg'}
+                        </div>
+                        <span className="text-[9px] text-slate-400 block mt-0.5">Unit: {item.unit || 'kg'}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Total Summary & Pricing / Dispatch Note */}
+              <div className="bg-slate-900 text-white rounded-xl p-3 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-300">Total Varieties:</span>
+                  <span className="font-bold">{selectedOrderForInvoice.items?.length || selectedOrderForInvoice.totalItemsCount || 0}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs border-t border-slate-800 pt-1.5">
+                  <span className="text-slate-300 font-bold">Total Order Volume:</span>
+                  <span className="font-mono font-black text-sm text-emerald-400">
+                    {selectedOrderForInvoice.totalQuantityKg ?? 0} kg
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-400 border-t border-slate-800 pt-1.5 leading-relaxed">
+                  Consignment Indent: Official tax invoice & applicable GST pricing are finalized at dispatch with consignment LR docket.
+                </div>
+              </div>
+
+              {/* Logistics & LR Info */}
+              {(selectedOrderForInvoice.lrNumber || selectedOrderForInvoice.assignedExecutiveName) && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1 text-[11px]">
+                  <div className="font-bold text-slate-700 flex items-center gap-1">
+                    <Truck className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Logistics & Fulfillment</span>
+                  </div>
+                  {selectedOrderForInvoice.lrNumber && (
+                    <div className="flex justify-between pt-0.5">
+                      <span className="text-slate-500">LR Docket:</span>
+                      <span className="font-mono font-bold text-slate-800">{selectedOrderForInvoice.lrNumber}</span>
+                    </div>
+                  )}
+                  {selectedOrderForInvoice.transporterName && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Transporter:</span>
+                      <span className="text-slate-800">{selectedOrderForInvoice.transporterName}</span>
+                    </div>
+                  )}
+                  {selectedOrderForInvoice.assignedExecutiveName && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Field Executive:</span>
+                      <span className="text-slate-800">{selectedOrderForInvoice.assignedExecutiveName}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setSelectedOrderForTrack(selectedOrderForInvoice);
+                  setSelectedOrderForInvoice(null);
+                  setActiveNav('tracking');
+                }}
+                className="flex-1 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl font-bold text-xs shadow transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Truck className="w-3.5 h-3.5" />
+                <span>Track Consignment</span>
+              </button>
+              <button
+                onClick={() => setSelectedOrderForInvoice(null)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>

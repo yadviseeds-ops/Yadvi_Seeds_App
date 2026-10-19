@@ -59,7 +59,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold)),
                             subtitle: Text(
-                                'Status: ${o.status}\nBags: ${o.totalQuantityBags}\nAssigned: ${o.assignedExecutiveName ?? 'Not Assigned'}'),
+                                'Status: ${o.status}\nTotal Weight: ${o.totalQuantityKg.toStringAsFixed(o.totalQuantityKg.truncateToDouble() == o.totalQuantityKg ? 0 : 2)} kg\nAssigned: ${o.assignedExecutiveName ?? 'Not Assigned'}'),
                             trailing:
                                 const Icon(Icons.arrow_forward_ios, size: 16),
                             onTap: () {

@@ -60,10 +60,10 @@ class _EodReportScreenState extends State<EodReportScreen> {
     // EOD uses existing visit/order data — no separate endpoint needed
     setState(() => _isSubmitting = true);
     await Future.delayed(const Duration(seconds: 1)); // simulate submission
-    
+
     // STOP DAILY GPS as requested by the workflow
     _feService.stopDailyGps();
-    
+
     setState(() {
       _isSubmitting = false;
       _submitted = true;
@@ -143,7 +143,7 @@ class _EodReportScreenState extends State<EodReportScreen> {
                       const SizedBox(height: 12),
                       _buildSummaryGrid([
                         _SummaryItem('Orders', _orders.length, Icons.shopping_bag, Colors.indigo),
-                        _SummaryItem('Bags Ordered', totalBags, Icons.inventory, const Color(0xFF0D4A32)),
+                        _SummaryItem('Orders Booked', totalBags, Icons.inventory, const Color(0xFF0D4A32)),
                       ]),
                       const SizedBox(height: 20),
 
@@ -170,7 +170,7 @@ class _EodReportScreenState extends State<EodReportScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
                                     Text(v.status, style: TextStyle(color: sc, fontWeight: FontWeight.bold, fontSize: 12)),
-                                    if (v.bagsOrdered > 0) Text('${v.bagsOrdered} Bags', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                                    if (v.bagsOrdered > 0) Text('${v.bagsOrdered} Orders', style: const TextStyle(color: Colors.grey, fontSize: 11)),
                                   ],
                                 ),
                               ],

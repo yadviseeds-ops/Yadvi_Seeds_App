@@ -90,10 +90,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         itemBuilder: (context, index) {
                           final order = _orders[index];
                           final formattedDate = _formatDate(order.createdAt);
-                          
+
                           // LR logic
                           final hasLr = order.lrNumber != null && order.lrNumber!.isNotEmpty;
-                          
+
                           return Card(
                             margin: const EdgeInsets.only(bottom: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -111,7 +111,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                         fontWeight: FontWeight.bold,
                                         color: Colors.black87,
                                       ),
-                                      children: hasLr 
+                                      children: hasLr
                                         ? [
                                             TextSpan(
                                               text: ' — LR: ${order.lrNumber}',
@@ -127,7 +127,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                     children: [
                                       Text('Order date: $formattedDate', style: const TextStyle(color: Colors.black54)),
                                       Text(
-                                        'Bags: ${order.totalQuantityBags}', 
+                                        'Total: ${order.totalQuantityKg.toStringAsFixed(order.totalQuantityKg.truncateToDouble() == order.totalQuantityKg ? 0 : 2)} kg',
                                         style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D4A32)),
                                       ),
                                     ],

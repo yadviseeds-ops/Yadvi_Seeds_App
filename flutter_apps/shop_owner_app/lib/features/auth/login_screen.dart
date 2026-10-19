@@ -4,7 +4,7 @@ import 'otp_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final String selectedRole;
-  
+
   const LoginScreen({super.key, required this.selectedRole});
 
   @override
@@ -47,9 +47,10 @@ class _LoginScreenState extends State<LoginScreen> {
       } catch (e) {
         if (mounted) {
           debugPrint('LOGIN ERROR: $e');
+          final message = e.toString().replaceFirst('Exception: ', '');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(e.toString()),
+              content: Text(message),
               backgroundColor: Colors.red,
             ),
           );

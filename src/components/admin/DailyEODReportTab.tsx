@@ -59,8 +59,8 @@ export const DailyEODReportTab: React.FC = () => {
   if (error) {
     return <div className="p-8 text-center text-red-500 font-medium">{error}</div>;
   }
-  
-  const filteredReports = dateFilter 
+
+  const filteredReports = dateFilter
     ? reports.filter(r => parseDateSafe(r.created_at).toISOString().split('T')[0] === dateFilter)
     : reports;
 
@@ -79,7 +79,7 @@ export const DailyEODReportTab: React.FC = () => {
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-slate-800">EOD Reports</h3>
           <div className="flex items-center gap-3">
-            <button 
+            <button
               onClick={() => fetchReports(true)}
               disabled={isRefreshing}
               className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition disabled:opacity-50"
@@ -87,8 +87,8 @@ export const DailyEODReportTab: React.FC = () => {
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
-            <input 
-              type="date" 
+            <input
+              type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
               className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm"
@@ -109,7 +109,7 @@ export const DailyEODReportTab: React.FC = () => {
       <div className="flex justify-between items-center">
         <h3 className="font-bold text-slate-800">Submitted EOD Reports</h3>
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={() => fetchReports(true)}
             disabled={isRefreshing}
             className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition disabled:opacity-50"
@@ -117,15 +117,15 @@ export const DailyEODReportTab: React.FC = () => {
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
-          <input 
-            type="date" 
+          <input
+            type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
             className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm"
           />
         </div>
       </div>
-      
+
       {Object.entries(grouped).map(([feName, feReports]) => (
         <div key={feName} className="bg-white rounded-2xl border border-slate-200/80 shadow-card overflow-hidden">
           <div
@@ -174,8 +174,8 @@ export const DailyEODReportTab: React.FC = () => {
                       <div className="text-lg font-black text-slate-800">{report.pending_visits}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Total Bags</div>
-                      <div className="text-lg font-black text-slate-800">{report.total_bags_ordered}</div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">Total Volume</div>
+                      <div className="text-lg font-black text-slate-800">{(report as any).total_kg_ordered ?? report.total_bags_ordered ?? 0} kg</div>
                     </div>
                   </div>
 
