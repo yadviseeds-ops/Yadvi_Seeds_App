@@ -129,6 +129,7 @@ def _build_order_out(order: Order) -> OrderOut:
 
 
 @router.get("", response_model=List[OrderOut])
+@router.get("/", response_model=List[OrderOut], include_in_schema=False)
 def list_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -163,6 +164,7 @@ def list_orders(
 
 
 @router.post("", response_model=OrderOut)
+@router.post("/", response_model=OrderOut, include_in_schema=False)
 def create_order(
     payload: OrderCreateRequest,
     db: Session = Depends(get_db),
@@ -174,6 +176,13 @@ def create_order(
     # Resolve shop
     if role_name == "shop_owner":
         shop = db.query(ShopOwner).filter(ShopOwner.user_id == current_user.id).first()
+        if not shop:
+            # Fallback by phone number
+            shop = db.query(ShopOwner).join(User, ShopOwner.user_id == User.id).filter(User.phone == current_user.phone).first()
+            if shop:
+                shop.user_id = current_user.id
+                db.commit()
+                db.refresh(shop)
         if not shop:
             raise HTTPException(status_code=404, detail="Shop profile not found")
     elif role_name == "field_executive":

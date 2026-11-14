@@ -16,6 +16,11 @@ class AuthProvider extends ChangeNotifier {
   bool get isAuthenticated => _isAuthenticated;
   AuthService get authService => _authService;
 
+  void updateCurrentUser(String name) {
+    _currentUser = name;
+    notifyListeners();
+  }
+
   Future<void> checkAuthStatus() async {
     _isLoading = true;
     notifyListeners();
@@ -34,13 +39,13 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<String> requestOtp(String username, String mobile) async {
+  Future<String> requestOtp(String username, String mobile, {String? expectedRole}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final verificationId = await _authService.requestOtp(username, mobile);
+      final verificationId = await _authService.requestOtp(username, mobile, expectedRole: expectedRole);
       _isLoading = false;
       notifyListeners();
       return verificationId;

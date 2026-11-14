@@ -1,6 +1,5 @@
 import React from 'react';
 import { useAppState } from '../../context/AppStateContext';
-import { YadviLogo } from '../common/YadviLogo';
 import {
   LayoutDashboard,
   Users,
@@ -47,11 +46,6 @@ export const AdminSidebar: React.FC = () => {
 
   return (
     <aside className="w-64 bg-[#0a3528] text-white flex flex-col shrink-0 border-r border-[#07241b] select-none min-h-screen">
-      {/* Brand Header */}
-      <div className="p-5 border-b border-[#124b3b]/60 flex items-center gap-3">
-        <YadviLogo size="md" variant="white" showTagline={false} />
-      </div>
-
       {/* Navigation List */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-emerald-400/70">

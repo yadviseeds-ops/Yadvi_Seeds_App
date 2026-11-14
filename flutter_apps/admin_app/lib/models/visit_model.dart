@@ -18,6 +18,8 @@ class VisitModel {
   final int bagsOrdered;
   final DateTime scheduledDate;
 
+  String? get feedback => notes;
+
   VisitModel({
     required this.id,
     required this.executiveId,

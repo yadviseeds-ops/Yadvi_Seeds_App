@@ -49,7 +49,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                     itemCount: adminProvider.visits.length,
                     itemBuilder: (ctx, i) {
                       final visit = adminProvider.visits[i];
-                      final isCompleted = visit.status.toLowerCase() == 'completed';
+                      final isCompleted = visit.status.toLowerCase() == 'completed' || visit.status.toLowerCase() == 'visited';
 
                       return Card(
                         child: Padding(

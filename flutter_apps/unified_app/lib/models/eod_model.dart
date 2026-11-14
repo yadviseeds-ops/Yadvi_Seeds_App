@@ -22,25 +22,34 @@ class EODReportModel {
   });
 
   factory EODReportModel.fromJson(Map<String, dynamic> json) {
-    DateTime parseDate(dynamic v) {
+    DateTime parseUtc(dynamic v) {
       if (v == null) return DateTime.now();
-      try {
-        return DateTime.parse(v.toString());
-      } catch (_) {
-        return DateTime.now();
+      String dateStr = v.toString().trim();
+      if (dateStr.isEmpty) return DateTime.now();
+      if (!dateStr.endsWith('Z')) {
+        int tIndex = dateStr.indexOf('T');
+        if (tIndex == -1) tIndex = dateStr.indexOf(' ');
+
+        if (tIndex != -1) {
+          String timePart = dateStr.substring(tIndex + 1);
+          if (!timePart.contains('+') && !timePart.contains('-')) {
+            dateStr += 'Z';
+          }
+        }
       }
+      return DateTime.tryParse(dateStr)?.toLocal() ?? DateTime.now();
     }
 
     return EODReportModel(
       id: json['id'] ?? 0,
       executiveId: json['executive_id'] ?? 0,
       executiveName: json['executive_name']?.toString() ?? '',
-      reportDate: parseDate(json['report_date']),
+      reportDate: parseUtc(json['report_date']),
       completedVisits: json['completed_visits'] ?? 0,
       pendingVisits: json['pending_visits'] ?? 0,
       totalBagsOrdered: json['total_bags_ordered'] ?? 0,
       notes: json['notes']?.toString(),
-      createdAt: parseDate(json['created_at']),
+      createdAt: parseUtc(json['created_at']),
     );
   }
 }

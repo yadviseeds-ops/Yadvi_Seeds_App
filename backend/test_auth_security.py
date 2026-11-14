@@ -19,10 +19,14 @@ from app.core.database import SessionLocal
 from app.models.all_models import User, Role, FieldExecutive, ShopOwner
 from app.core.security import create_access_token, verify_password, get_password_hash
 from app.api.auth import OTP_STORE
+from app.core.rate_limiter import verify_user_limiter, login_failure_limiter, request_otp_limiter
 
 
 async def run_auth_security_tests():
     db = SessionLocal()
+    verify_user_limiter.reset()
+    login_failure_limiter.reset()
+    request_otp_limiter.reset()
     transport = httpx.ASGITransport(app=app)
 
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
@@ -211,6 +215,81 @@ async def run_auth_security_tests():
         assert res.status_code == 200, f"Expected 200 for exact phone, got {res.status_code}"
         print("[PASS] 3f. verify-user enforces exact phone matching and rejects substrings -> 200/401")
 
+        # 3g. verify-user with matching expected_role succeeds for all 3 roles
+        res = await client.post("/api/v1/auth/verify-user", json={
+            "username": admin_user.username,
+            "mobile": admin_user.phone,
+            "expected_role": "administrator"
+        })
+        assert res.status_code == 200, f"Expected 200 for matching admin role, got {res.status_code}"
+
+        res = await client.post("/api/v1/auth/verify-user", json={
+            "username": fe_user.username,
+            "mobile": fe_user.phone,
+            "expected_role": "field_executive"
+        })
+        assert res.status_code == 200, f"Expected 200 for matching field_executive role, got {res.status_code}"
+
+        res = await client.post("/api/v1/auth/verify-user", json={
+            "username": shop_user.username,
+            "mobile": shop_user.phone,
+            "expected_role": "shop_owner"
+        })
+        assert res.status_code == 200, f"Expected 200 for matching shop_owner role, got {res.status_code}"
+        print("[PASS] 3g. verify-user with matching expected_role succeeds for all 3 roles -> 200 OK")
+
+        # 3h. verify-user with mismatched expected_role is rejected before OTP dispatch
+        # (Anti-enumeration: returns uniform generic error without leaking account existence)
+        res = await client.post("/api/v1/auth/verify-user", json={
+            "username": fe_user.username,
+            "mobile": fe_user.phone,
+            "expected_role": "administrator"
+        })
+        assert res.status_code == 401, f"Expected 401 for FE claiming admin, got {res.status_code}"
+        assert res.json().get("detail") == "Invalid username, phone number, or role."
+
+        res = await client.post("/api/v1/auth/verify-user", json={
+            "username": admin_user.username,
+            "mobile": admin_user.phone,
+            "expected_role": "field_executive"
+        })
+        assert res.status_code == 401, f"Expected 401 for Admin claiming FE, got {res.status_code}"
+        assert res.json().get("detail") == "Invalid username, phone number, or role."
+
+        res = await client.post("/api/v1/auth/verify-user", json={
+            "username": shop_user.username,
+            "mobile": shop_user.phone,
+            "expected_role": "field_executive"
+        })
+        assert res.status_code == 401, f"Expected 401 for Shop Owner claiming FE, got {res.status_code}"
+        assert res.json().get("detail") == "Invalid username, phone number, or role."
+        print("[PASS] 3h. verify-user with mismatched expected_role is rejected with anti-enumeration message -> 401 Unauthorized")
+
+        # 3i. verify-user with unknown user or wrong phone is rejected
+        res = await client.post("/api/v1/auth/verify-user", json={
+            "username": "UNKNOWN_USER_XYZ",
+            "mobile": "9999999999",
+            "expected_role": "administrator"
+        })
+        assert res.status_code == 401, f"Expected 401 for unknown user, got {res.status_code}"
+
+        res = await client.post("/api/v1/auth/verify-user", json={
+            "username": admin_user.username,
+            "mobile": "9000000000",
+            "expected_role": "administrator"
+        })
+        assert res.status_code == 401, f"Expected 401 for wrong phone, got {res.status_code}"
+        print("[PASS] 3i. verify-user with unknown user or wrong phone is rejected -> 401 Unauthorized")
+
+        # 3j. verify-user backward compatibility when expected_role is omitted
+        verify_user_limiter.reset()
+        res = await client.post("/api/v1/auth/verify-user", json={
+            "username": admin_user.username,
+            "mobile": admin_user.phone
+        })
+        assert res.status_code == 200, f"Expected 200 when expected_role is omitted, got {res.status_code}"
+        print("[PASS] 3j. verify-user backward compatibility when expected_role omitted -> 200 OK")
+
         # ---------------------------------------------------------
         # Test 4: Token Validation & Missing/Invalid Auth
         # ---------------------------------------------------------
@@ -388,7 +467,171 @@ async def run_auth_security_tests():
             assert res.json()["role"] == "shop_owner", f"Expected shop_owner, got {res.json()['role']}"
             print("[PASS] 7e. Backend ignores client-specified role and enforces database role -> 200 OK (role: shop_owner)")
 
-        print("\n=== ALL 22 AUTHENTICATION & RBAC SECURITY TEST CASES PASSED! ===\n")
+            # ---------------------------------------------------------
+            # Test 8: Admin Profile Management (GET & PUT /api/v1/auth/me)
+            # ---------------------------------------------------------
+            admin_token = create_access_token(data={"sub": str(admin_user.id), "role": "administrator", "name": admin_user.full_name})
+            fe_token = create_access_token(data={"sub": str(fe_user.id), "role": "field_executive", "name": fe_user.full_name})
+
+            # 8a. GET /auth/me returns complete profile including username
+            res = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {admin_token}"})
+            assert res.status_code == 200, f"Expected 200, got {res.status_code}"
+            profile = res.json()
+            assert profile["username"] == admin_user.username, f"Expected {admin_user.username}, got {profile.get('username')}"
+            assert profile["full_name"] == admin_user.full_name
+            assert profile["role"] == "administrator"
+            print("[PASS] 8a. GET /auth/me returns complete profile with username -> 200 OK")
+
+            # 8b. Unauthorized roles (Field Executive) cannot access PUT /auth/me
+            res = await client.put(
+                "/api/v1/auth/me",
+                headers={"Authorization": f"Bearer {fe_token}"},
+                json={"full_name": "Unauthorized Attempt"}
+            )
+            assert res.status_code == 403, f"Expected 403 Forbidden for FE updating profile, got {res.status_code}"
+            print("[PASS] 8b. Non-administrator rejected from PUT /auth/me -> 403 Forbidden")
+
+            # 8c. Admin updating full_name and email
+            admin_user.phone = "9529403798"
+            db.commit()
+            orig_name = admin_user.full_name
+            orig_email = admin_user.email
+            orig_username = admin_user.username
+            orig_phone = "9529403798"
+            try:
+                res = await client.put(
+                    "/api/v1/auth/me",
+                    headers={"Authorization": f"Bearer {admin_token}"},
+                    json={"full_name": "Ramesh Kumar Sharma", "email": "admin_updated@yadvi.com"}
+                )
+                assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+                updated = res.json()
+                assert updated["full_name"] == "Ramesh Kumar Sharma"
+                assert updated["email"] == "admin_updated@yadvi.com"
+                print("[PASS] 8c. Admin updates full_name and email -> 200 OK")
+
+                # 8d. Username uniqueness validation
+                # Attempt to set admin username to existing fe_user.username
+                res = await client.put(
+                    "/api/v1/auth/me",
+                    headers={"Authorization": f"Bearer {admin_token}"},
+                    json={"username": fe_user.username}
+                )
+                assert res.status_code == 400, f"Expected 400 for duplicate username, got {res.status_code}"
+                print("[PASS] 8d. Duplicate username rejected with 400 Bad Request")
+
+                # 8e. Phone change without Firebase token is rejected
+                res = await client.put(
+                    "/api/v1/auth/me",
+                    headers={"Authorization": f"Bearer {admin_token}"},
+                    json={"new_phone": "9876543210"}
+                )
+                assert res.status_code == 400, f"Expected 400 when missing Firebase token, got {res.status_code}"
+                print("[PASS] 8e. Phone change without Firebase ID token rejected -> 400 Bad Request")
+
+                # 8f. Phone change with mismatched Firebase token phone is rejected
+                mock_verify_token.return_value = {
+                    "uid": "fb_admin_test",
+                    "phone_number": "+919999999999"  # Does not match 9876543210
+                }
+                res = await client.put(
+                    "/api/v1/auth/me",
+                    headers={"Authorization": f"Bearer {admin_token}"},
+                    json={"new_phone": "9876543210", "firebase_id_token": "token_mismatched"}
+                )
+                assert res.status_code == 400, f"Expected 400 for phone mismatch, got {res.status_code}"
+                print("[PASS] 8f. Phone change with mismatched Firebase token rejected -> 400 Bad Request")
+
+                # 8g. Phone change with verified Firebase token succeeds and updates DB
+                from app.models.all_models import AdminPhone
+                AdminPhone.__table__.create(bind=db.bind, checkfirst=True)
+                db.query(AdminPhone).filter(AdminPhone.user_id == admin_user.id).delete()
+                db.commit()
+
+                mock_verify_token.return_value = {
+                    "uid": "fb_admin_test",
+                    "phone_number": "+919876543210"
+                }
+                res = await client.put(
+                    "/api/v1/auth/me",
+                    headers={"Authorization": f"Bearer {admin_token}"},
+                    json={"new_phone": "9876543210", "firebase_id_token": "valid_fb_token_9876543210"}
+                )
+                assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+                assert res.json()["phone"] == "9876543210"
+                print("[PASS] 8g. Phone change with verified Firebase token succeeds -> 200 OK")
+
+                # 8h. Duplicate phone in admin_phones is rejected with 400
+                test_sec_phone = AdminPhone(user_id=fe_user.id, phone="9111223344", label="Other Phone")
+                db.add(test_sec_phone)
+                db.commit()
+
+                try:
+                    mock_verify_token.return_value = {"uid": "fb_dup_test", "phone_number": "+919111223344"}
+                    res = await client.put(
+                        "/api/v1/auth/me",
+                        headers={"Authorization": f"Bearer {admin_token}"},
+                        json={"new_phone": "9111223344", "firebase_id_token": "valid_token"}
+                    )
+                    assert res.status_code == 400, f"Expected 400 for phone already in admin_phones, got {res.status_code}"
+                    assert "authorized administrator phone" in res.json()["detail"]
+                    print("[PASS] 8h. Phone already in admin_phones rejected -> 400 Bad Request")
+                finally:
+                    db.delete(test_sec_phone)
+                    db.commit()
+
+                # 8i. Multi-row admin_phones preservation:
+                # Setup: Admin has primary phone record and secondary phone record in admin_phones
+                db.query(AdminPhone).filter(AdminPhone.user_id == admin_user.id).delete()
+                admin_user.phone = "9529403798"
+                db.commit()
+                primary_entry = AdminPhone(user_id=admin_user.id, phone="9529403798", label="Primary Admin Phone")
+                secondary_entry = AdminPhone(user_id=admin_user.id, phone="8080259924", label="Secondary Admin Phone")
+                db.add_all([primary_entry, secondary_entry])
+                db.commit()
+
+                try:
+                    mock_verify_token.return_value = {"uid": "fb_multi_test", "phone_number": "+919876500002"}
+                    res = await client.put(
+                        "/api/v1/auth/me",
+                        headers={"Authorization": f"Bearer {admin_token}"},
+                        json={"new_phone": "9876500002", "firebase_id_token": "valid_token_multi"}
+                    )
+                    assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+                    assert res.json()["phone"] == "9876500002"
+
+                    # Verify secondary entry was preserved unchanged!
+                    sec_row = db.query(AdminPhone).filter(AdminPhone.user_id == admin_user.id, AdminPhone.phone == "8080259924").first()
+                    assert sec_row is not None, "Secondary AdminPhone 8080259924 must NOT be overwritten!"
+
+                    # Verify primary entry was updated to new phone
+                    prim_row = db.query(AdminPhone).filter(AdminPhone.user_id == admin_user.id, AdminPhone.phone == "9876500002").first()
+                    assert prim_row is not None, "Primary AdminPhone must be updated to new phone 9876500002!"
+                    print("[PASS] 8i. Multi-row admin_phones preserved secondary number while updating primary -> 200 OK")
+                finally:
+                    db.query(AdminPhone).filter(AdminPhone.user_id == admin_user.id).delete()
+                    db.commit()
+
+                # 8j. Database rollback on commit failure
+                with patch("sqlalchemy.orm.Session.commit", side_effect=Exception("Simulated DB connection drop")):
+                    res = await client.put(
+                        "/api/v1/auth/me",
+                        headers={"Authorization": f"Bearer {admin_token}"},
+                        json={"full_name": "Rollback Test Name"}
+                    )
+                    assert res.status_code == 500, f"Expected 500 on DB failure, got {res.status_code}"
+                    assert "internal database error" in res.json()["detail"]
+                    print("[PASS] 8j. Database exception triggers rollback and non-sensitive 500 -> 500 Internal Server Error")
+
+            finally:
+                # Restore original admin details
+                admin_user.full_name = orig_name
+                admin_user.email = orig_email
+                admin_user.username = orig_username
+                admin_user.phone = orig_phone
+                db.commit()
+
+        print("\n=== ALL AUTHENTICATION, RBAC & PROFILE SECURITY TEST CASES PASSED! ===\n")
 
     db.close()
 

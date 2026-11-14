@@ -5,7 +5,9 @@ import '../../models/visit_model.dart';
 import '../../models/order_model.dart';
 
 class EodReportScreen extends StatefulWidget {
-  const EodReportScreen({super.key});
+  final VoidCallback? onBack;
+
+  const EodReportScreen({super.key, this.onBack});
 
   @override
   State<EodReportScreen> createState() => _EodReportScreenState();
@@ -98,6 +100,17 @@ class _EodReportScreenState extends State<EodReportScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F0),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: 'Back',
+          onPressed: () {
+            if (widget.onBack != null) {
+              widget.onBack!();
+            } else if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
         title: const Text('EOD Report', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: const Color(0xFF0D4A32),
       ),

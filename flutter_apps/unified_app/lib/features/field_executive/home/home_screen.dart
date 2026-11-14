@@ -5,14 +5,17 @@ import '../../../models/visit_model.dart';
 import '../../../models/order_model.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final FeService? feService;
+  final VoidCallback? onBack;
+
+  const HomeScreen({super.key, this.feService, this.onBack});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  final _feService = FeService();
+class HomeScreenState extends State<HomeScreen> {
+  late final FeService _feService;
   FeProfile? _profile;
   List<VisitModel> _visits = [];
   List<OrderModel> _orders = [];
@@ -22,10 +25,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _feService = widget.feService ?? FeService();
+    loadData();
   }
 
-  Future<void> _loadData() async {
+  Future<void> loadData() async {
     try {
       final results = await Future.wait([
         _feService.getMyProfile(),
@@ -55,12 +59,23 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F0),
       body: RefreshIndicator(
-        onRefresh: _loadData,
+        onRefresh: loadData,
         child: CustomScrollView(
           slivers: [
             SliverAppBar(
               expandedHeight: 140,
               pinned: true,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                tooltip: 'Back',
+                onPressed: () {
+                  if (widget.onBack != null) {
+                    widget.onBack!();
+                  } else if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
               backgroundColor: const Color(0xFF0D4A32),
               flexibleSpace: FlexibleSpaceBar(
                 background: Container(
@@ -77,34 +92,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              const CircleAvatar(
-                                backgroundColor: Color(0xFF2EA86A),
-                                radius: 22,
-                                child: Icon(Icons.person, color: Colors.white, size: 26),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _isLoading ? 'Loading...' : 'Good Day, ${_profile?.fullName.split(' ').first ?? 'Executive'}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      _profile?.designation ?? '',
-                                      style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                          Text(
+                            _isLoading ? 'Loading...' : 'Good Day, ${_profile?.fullName.split(' ').first ?? 'Executive'}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _profile?.designation ?? '',
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12),
                           ),
                         ],
                       ),
@@ -127,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 16),
                         Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
                         const SizedBox(height: 16),
-                        ElevatedButton(onPressed: _loadData, child: const Text('Retry')),
+                        ElevatedButton(onPressed: loadData, child: const Text('Retry')),
                       ],
                     ),
                   ),
@@ -149,14 +148,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                        _buildStatCard('Pending', '$pending', Icons.access_time, Colors.orange[700]!),
                     Row(
                       children: [
-                        _buildStatCard('Assigned Orders', '${_orders.length}', Icons.shopping_bag, Colors.teal[700]!),
+                        _buildStatCard('Pending', '$pending', Icons.access_time, Colors.orange[700]!),
                         const SizedBox(width: 10),
-                        _buildStatCard('Territory', _profile?.assignedTerritory ?? '-', Icons.map, const Color(0xFF0D4A32)),
+                        _buildStatCard('Assigned Orders', '${_orders.length}', Icons.shopping_bag, Colors.teal[700]!),
                       ],
                     ),
+                    const SizedBox(height: 10),
+                    _buildTerritoryCard(_profile?.assignedTerritory ?? '-'),
                     const SizedBox(height: 20),
 
                     // Today's visits list
@@ -208,14 +208,76 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: color)),
-                  Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text(
+                    value,
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: color),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    label,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTerritoryCard(String territory) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          )
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D4A32).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.map, color: Color(0xFF0D4A32), size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Territory', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                const SizedBox(height: 2),
+                Text(
+                  territory,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Color(0xFF0D4A32),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

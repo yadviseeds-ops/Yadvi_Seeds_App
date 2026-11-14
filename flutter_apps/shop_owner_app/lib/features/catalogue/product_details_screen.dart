@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/product.dart';
 import '../cart/cart_provider.dart';
+import '../cart/cart_screen.dart';
 import '../../core/config/app_config.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
@@ -93,6 +94,25 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         backgroundColor: const Color(0xFFF4F6F5),
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87),
+        actions: [
+          Consumer<CartProvider>(
+            builder: (context, cart, _) => IconButton(
+              icon: Badge(
+                isLabelVisible: cart.totalQuantityCount > 0,
+                label: Text('${cart.totalQuantityCount}'),
+                child: const Icon(Icons.shopping_cart_outlined, color: Colors.black87),
+              ),
+              tooltip: 'Shopping Cart',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CartScreen()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -391,9 +411,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                         );
 
                         final displayQty = qty.truncateToDouble() == qty ? qty.toInt().toString() : qty.toString();
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Added $displayQty $_selectedUnit of ${p.name} to cart'),
+                            content: Text('Product added to cart: $displayQty $_selectedUnit of ${p.name}'),
                             backgroundColor: const Color(0xFF2E7D32),
                           ),
                         );

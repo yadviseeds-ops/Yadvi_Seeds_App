@@ -5,7 +5,8 @@ import '../../models/order_model.dart';
 import '../../providers/admin_provider.dart';
 
 class OrdersScreen extends StatefulWidget {
-  const OrdersScreen({super.key});
+  final String? initialStatus;
+  const OrdersScreen({super.key, this.initialStatus});
 
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();
@@ -18,6 +19,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   final List<String> _statusFilters = [
     'All',
+    'Pending',
     'New',
     'Confirmed',
     'Dispatched',
@@ -28,6 +30,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialStatus != null && widget.initialStatus!.isNotEmpty) {
+      _selectedStatus = widget.initialStatus!;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<AdminProvider>(context, listen: false).fetchOrders();
     });
@@ -41,6 +46,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
+      case 'pending':
+        return Colors.amber.shade800;
       case 'new':
         return Colors.orange.shade800;
       case 'confirmed':
@@ -72,8 +79,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     // Apply filtering
     final filteredOrders = adminProvider.orders.where((o) {
-      final matchesStatus = _selectedStatus == 'All' ||
-          o.status.toLowerCase() == _selectedStatus.toLowerCase();
+      final stLower = o.status.toLowerCase();
+      final bool matchesStatus;
+      if (_selectedStatus == 'All') {
+        matchesStatus = true;
+      } else if (_selectedStatus.toLowerCase() == 'pending') {
+        matchesStatus = ['new', 'confirmed', 'processing', 'pending'].contains(stLower);
+      } else {
+        matchesStatus = stLower == _selectedStatus.toLowerCase();
+      }
       final matchesQuery = _searchQuery.isEmpty ||
           o.orderNumber.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           o.shopName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -95,7 +109,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   controller: _searchController,
                   onChanged: (v) => setState(() => _searchQuery = v.trim()),
                   decoration: InputDecoration(
-                    hintText: 'Search order number, dealer, or city...',
+                    hintText: 'Search order number, shop owner, or city...',
                     prefixIcon: const Icon(Icons.search, size: 20),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
@@ -360,7 +374,7 @@ class _OrderDetailSheetState extends State<_OrderDetailSheet> {
               ],
             ),
             const SizedBox(height: 12),
-            Text('Dealer: ${ord.shopName}', style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text('Shop Owner: ${ord.shopName}', style: const TextStyle(fontWeight: FontWeight.w600)),
             if (ord.contactPhone.isNotEmpty) Text('Contact: ${ord.contactPhone}'),
             if (ord.deliveryAddress.isNotEmpty) Text('Address: ${ord.deliveryAddress}'),
             const Divider(height: 24),

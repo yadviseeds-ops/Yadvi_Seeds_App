@@ -19,9 +19,27 @@ class LocalStorage {
     return await _secureStorage.read(key: 'user_role');
   }
 
+  static Future<void> saveUserData({
+    required int userId,
+    required String fullName,
+  }) async {
+    await _secureStorage.write(key: 'user_id', value: userId.toString());
+    await _secureStorage.write(key: 'user_name', value: fullName);
+  }
+
+  static Future<Map<String, String?>> getUserData() async {
+    return {
+      'id': await _secureStorage.read(key: 'user_id'),
+      'name': await _secureStorage.read(key: 'user_name'),
+      'role': await _secureStorage.read(key: 'user_role'),
+    };
+  }
+
   static Future<void> clearToken() async {
     await _secureStorage.delete(key: 'jwt_token');
     await _secureStorage.delete(key: 'user_role');
+    await _secureStorage.delete(key: 'user_id');
+    await _secureStorage.delete(key: 'user_name');
   }
 
   static Future<bool> hasSession() async {

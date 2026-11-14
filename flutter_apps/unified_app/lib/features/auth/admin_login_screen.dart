@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/auth/auth_service.dart';
-import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../admin/main_scaffold.dart';
@@ -15,8 +14,8 @@ class AdminLoginScreen extends StatefulWidget {
 
 class _AdminLoginScreenState extends State<AdminLoginScreen> {
   final _otpFormKey = GlobalKey<FormState>();
-  final _otpUsernameController = TextEditingController(text: 'ADMIN');
-  final _mobileController = TextEditingController(text: '9529403798');
+  final _otpUsernameController = TextEditingController();
+  final _mobileController = TextEditingController();
   final _otpController = TextEditingController();
 
   bool _isOtpSent = false;
@@ -37,6 +36,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
       await authProvider.requestOtp(
         _otpUsernameController.text.trim(),
         _mobileController.text.trim(),
+        expectedRole: 'administrator',
       );
       setState(() {
         _isOtpSent = true;
@@ -118,30 +118,17 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
                 children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryGreen.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.admin_panel_settings_rounded,
-                      size: 40,
-                      color: AppTheme.primaryGreen,
-                    ),
+                  Image.asset(
+                    'assets/images/yhs_logo.png',
+                    height: 240,
+                    fit: BoxFit.contain,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
                   const Text(
                     'System Administration Console',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textDark),
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Firebase Phone OTP Authentication',
-                    style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
-                  ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 14),
 
                   Card(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -180,7 +167,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 16),
 
                             if (_isOtpSent) ...[
                               TextFormField(
@@ -196,17 +183,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                               ),
                               const SizedBox(height: 12),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  TextButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _isOtpSent = false;
-                                        _otpController.clear();
-                                      });
-                                    },
-                                    child: const Text('Change Mobile'),
-                                  ),
                                   TextButton(
                                     onPressed: authProvider.isLoading ? null : _handleRequestOtp,
                                     child: const Text('Resend Code'),
@@ -242,13 +220,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                       ),
                     ),
                   ),
-
-                  const SizedBox(height: 20),
-                  Text(
-                    'Connected API: ${AppConfig.apiBaseUrl}',
-                    style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
-                    textAlign: TextAlign.center,
-                  ),
                 ],
               ),
             ),
@@ -258,3 +229,4 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     );
   }
 }
+

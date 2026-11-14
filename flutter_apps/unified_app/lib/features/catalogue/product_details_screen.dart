@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:unified_app/models/product.dart';
 import 'package:unified_app/features/cart/cart_provider.dart';
-import 'package:unified_app/core/config/app_config.dart';
+import 'package:unified_app/features/cart/cart_screen.dart';
+import 'package:unified_app/core/widgets/product_image.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final Product product;
@@ -89,6 +90,25 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         backgroundColor: const Color(0xFFF4F6F5),
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87),
+        actions: [
+          Consumer<CartProvider>(
+            builder: (context, cart, _) => IconButton(
+              icon: Badge(
+                isLabelVisible: cart.totalQuantityCount > 0,
+                label: Text('${cart.totalQuantityCount}'),
+                child: const Icon(Icons.shopping_cart_outlined, color: Colors.black87),
+              ),
+              tooltip: 'Shopping Cart',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CartScreen()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -106,17 +126,15 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: p.imageUrl.isNotEmpty
-                      ? Image.network(
-                          p.imageUrl.startsWith('/') ? '${AppConfig.apiBaseUrl}${p.imageUrl}' : p.imageUrl,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Center(
-                            child: Icon(Icons.eco, size: 80, color: Color(0xFF2E7D32)),
-                          ),
-                        )
-                      : const Center(
-                          child: Icon(Icons.eco, size: 80, color: Color(0xFF2E7D32)),
-                        ),
+                  child: ProductImage(
+                    imageUrl: p.imageUrl,
+                    width: double.infinity,
+                    height: 250,
+                    fit: BoxFit.contain,
+                    placeholder: const Center(
+                      child: Icon(Icons.eco, size: 80, color: Color(0xFF2E7D32)),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -376,9 +394,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                         );
 
                         final displayQty = qty.truncateToDouble() == qty ? qty.toInt().toString() : qty.toString();
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Added $displayQty $_selectedUnit of ${p.name} to cart'),
+                            content: Text('Product added to cart: $displayQty $_selectedUnit of ${p.name}'),
                             backgroundColor: const Color(0xFF2E7D32),
                           ),
                         );

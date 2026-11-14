@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/exit_dialog.dart';
 import '../../providers/auth_provider.dart';
 import '../main_scaffold.dart';
 
@@ -190,8 +192,17 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> with SingleTick
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
 
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundGrey,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final exit = await showExitConfirmationDialog(context);
+        if (exit) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.backgroundGrey,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -213,20 +224,12 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> with SingleTick
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Brand Header
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryGreen.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.admin_panel_settings_rounded,
-                      size: 42,
-                      color: AppTheme.primaryGreen,
-                    ),
+                  Image.asset(
+                    'assets/images/yhs_logo.png',
+                    height: 240,
+                    fit: BoxFit.contain,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   const Text(
                     'YADVI SEEDS',
                     style: TextStyle(
@@ -245,7 +248,7 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> with SingleTick
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
                   // Tab selector (OTP vs Password)
                   Container(
@@ -429,6 +432,7 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> with SingleTick
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

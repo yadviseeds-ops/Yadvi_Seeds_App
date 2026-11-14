@@ -140,6 +140,13 @@ class AuthService {
         }
         await LocalStorage.saveToken(accessToken);
         await LocalStorage.saveRole(role);
+        if (data['user_id'] != null) {
+          final uId = data['user_id'] is int
+              ? data['user_id'] as int
+              : (int.tryParse(data['user_id'].toString()) ?? 0);
+          final fName = data['full_name']?.toString() ?? username;
+          await LocalStorage.saveUserData(userId: uId, fullName: fName);
+        }
         return true;
       } else {
         await logout();

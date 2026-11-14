@@ -5,7 +5,7 @@ from typing import List
 from app.core.database import get_db
 from app.core.security import require_role
 from app.models.all_models import (
-    User, Order, Product, ShopOwner, FieldExecutive, Attendance, Visit, Shipment
+    User, Order, Product, ShopOwner, FieldExecutive, Attendance, Visit, Shipment, EODReport
 )
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard & KPIs"])
@@ -30,6 +30,8 @@ class DashboardData(BaseModel):
     present_today: int
     total_visits_today: int
     completed_visits_today: int
+    total_eod_reports: int = 0
+    eod_reports_today: int = 0
 
 
 @router.get("/admin", response_model=DashboardData)
@@ -39,7 +41,7 @@ def get_admin_dashboard(
 ):
     """Admin dashboard KPIs."""
     total_orders = db.query(Order).count()
-    pending_orders = db.query(Order).filter(Order.status.in_(["New", "Confirmed", "Processing"])).count()
+    pending_orders = db.query(Order).filter(Order.status.in_(["New", "Confirmed", "Processing", "Pending"])).count()
     dispatched_orders = db.query(Order).filter(Order.status.in_(["Dispatched", "In Transit"])).count()
     delivered_orders = db.query(Order).filter(Order.status == "Delivered").count()
     total_products = db.query(Product).count()
@@ -60,6 +62,9 @@ def get_admin_dashboard(
         Visit.scheduled_date >= today_start,
         Visit.status == "Visited"
     ).count()
+
+    total_eod_reports = db.query(EODReport).count()
+    eod_reports_today = db.query(EODReport).filter(EODReport.created_at >= today_start).count()
 
     kpis = [
         KPICard(
@@ -112,4 +117,6 @@ def get_admin_dashboard(
         present_today=present_today,
         total_visits_today=total_visits_today,
         completed_visits_today=completed_visits_today,
+        total_eod_reports=total_eod_reports,
+        eod_reports_today=eod_reports_today,
     )

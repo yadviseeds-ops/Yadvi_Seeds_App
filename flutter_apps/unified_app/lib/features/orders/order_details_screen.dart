@@ -430,7 +430,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           isLast: false,
         ),
         _buildTimelineStep(
-          title: 'Delivered to Dealer',
+          title: 'Delivered to Shop Owner',
           subtitle: 'Direct shop handover',
           stepNumber: 4,
           isCompleted: stepIndex >= 4,

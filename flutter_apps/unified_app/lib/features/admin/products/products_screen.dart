@@ -2,10 +2,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:unified_app/core/config/app_config.dart';
 import 'package:unified_app/core/theme/app_theme.dart';
 import 'package:unified_app/models/product_model.dart';
 import 'package:unified_app/providers/admin_provider.dart';
+import 'package:unified_app/core/widgets/product_image.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -38,39 +38,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
       return _buildImagePlaceholder(size: size);
     }
 
-    String resolvedUrl = cleanUrl;
-    if (cleanUrl.startsWith('/')) {
-      resolvedUrl = '${AppConfig.apiBaseUrl}$cleanUrl';
-    }
-
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Container(
         width: size,
         height: size,
         color: Colors.grey.shade100,
-        child: Image.network(
-          resolvedUrl,
+        child: ProductImage(
+          imageUrl: cleanUrl,
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (ctx, err, stack) => _buildImagePlaceholder(size: size),
-          loadingBuilder: (ctx, child, progress) {
-            if (progress == null) return child;
-            return Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppTheme.primaryGreen,
-                  value: progress.expectedTotalBytes != null
-                      ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
-                      : null,
-                ),
-              ),
-            );
-          },
+          placeholder: _buildImagePlaceholder(size: size),
         ),
       ),
     );
@@ -175,174 +154,182 @@ class _ProductsScreenState extends State<ProductsScreen> {
           final hasImage = pickedImageBytes != null || hasExistingImage;
 
           return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Text(
               isEditing ? 'Edit Seed Variety' : 'Add Seed Variety',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
-            content: SingleChildScrollView(
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // --- Product Image Picker Section ---
-                    const Text(
-                      'Product Image',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textDark),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Container(
-                          width: 74,
-                          height: 74,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade300),
+            content: Container(
+              constraints: const BoxConstraints(maxWidth: 480),
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // --- Product Image Picker Section ---
+                      const Text(
+                        'Product Image',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textDark),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            width: 74,
+                            height: 74,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: pickedImageBytes != null
+                                  ? Image.memory(pickedImageBytes!, width: 74, height: 74, fit: BoxFit.cover)
+                                  : (hasExistingImage
+                                      ? _buildProductThumbnail(currentImageUrl, size: 74)
+                                      : Center(
+                                          child: Icon(
+                                            Icons.add_photo_alternate_outlined,
+                                            size: 32,
+                                            color: Colors.grey.shade400,
+                                          ),
+                                        )),
+                            ),
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: pickedImageBytes != null
-                                ? Image.memory(pickedImageBytes!, width: 74, height: 74, fit: BoxFit.cover)
-                                : (hasExistingImage
-                                    ? _buildProductThumbnail(currentImageUrl, size: 74)
-                                    : Center(
-                                        child: Icon(
-                                          Icons.add_photo_alternate_outlined,
-                                          size: 32,
-                                          color: Colors.grey.shade400,
-                                        ),
-                                      )),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  OutlinedButton.icon(
-                                    style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                      side: const BorderSide(color: AppTheme.primaryGreen),
-                                    ),
-                                    onPressed: isSaving
-                                        ? null
-                                        : () => _showImageSourcePicker(ctx, (source) => pickImage(source)),
-                                    icon: const Icon(Icons.photo_camera, size: 16, color: AppTheme.primaryGreen),
-                                    label: Text(
-                                      hasImage ? 'Change' : 'Select Image',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppTheme.primaryGreen,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                  if (hasImage) ...[
-                                    const SizedBox(width: 6),
-                                    TextButton.icon(
-                                      style: TextButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                                        foregroundColor: Colors.redAccent,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        side: const BorderSide(color: AppTheme.primaryGreen),
                                       ),
                                       onPressed: isSaving
                                           ? null
-                                          : () {
-                                              setDialogState(() {
-                                                pickedImageBytes = null;
-                                                pickedImageName = null;
-                                                removeCurrentImage = true;
-                                              });
-                                            },
-                                      icon: const Icon(Icons.close, size: 14),
-                                      label: const Text('Remove', style: TextStyle(fontSize: 11)),
+                                          : () => _showImageSourcePicker(ctx, (source) => pickImage(source)),
+                                      icon: const Icon(Icons.photo_camera, size: 16, color: AppTheme.primaryGreen),
+                                      label: Text(
+                                        hasImage ? 'Change' : 'Select Image',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.primaryGreen,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
+                                    if (hasImage)
+                                      TextButton.icon(
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                                          foregroundColor: Colors.redAccent,
+                                        ),
+                                        onPressed: isSaving
+                                            ? null
+                                            : () {
+                                                setDialogState(() {
+                                                  pickedImageBytes = null;
+                                                  pickedImageName = null;
+                                                  removeCurrentImage = true;
+                                                });
+                                              },
+                                        icon: const Icon(Icons.close, size: 14),
+                                        label: const Text('Remove', style: TextStyle(fontSize: 11)),
+                                      ),
                                   ],
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'JPG, PNG, WebP supported',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                              ),
-                            ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'JPG, PNG, WebP supported',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                ),
+                              ],
+                            ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+
+                      // --- Variety Name ---
+                      TextFormField(
+                        controller: nameController,
+                        enabled: !isSaving,
+                        decoration: const InputDecoration(labelText: 'Variety Name *'),
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // --- Crop / Variety Type ---
+                      TextFormField(
+                        controller: varietyController,
+                        enabled: !isSaving,
+                        decoration: const InputDecoration(labelText: 'Crop / Variety Type *'),
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // --- SKU Code (Optional) ---
+                      TextFormField(
+                        controller: skuController,
+                        enabled: !isSaving,
+                        decoration: const InputDecoration(
+                          labelText: 'SKU Code (Optional)',
+                          hintText: 'Leave empty to auto-generate',
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-
-                    // --- Variety Name ---
-                    TextFormField(
-                      controller: nameController,
-                      enabled: !isSaving,
-                      decoration: const InputDecoration(labelText: 'Variety Name *'),
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 10),
-
-                    // --- Crop / Variety Type ---
-                    TextFormField(
-                      controller: varietyController,
-                      enabled: !isSaving,
-                      decoration: const InputDecoration(labelText: 'Crop / Variety Type *'),
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 10),
-
-                    // --- SKU Code (Optional) ---
-                    TextFormField(
-                      controller: skuController,
-                      enabled: !isSaving,
-                      decoration: const InputDecoration(
-                        labelText: 'SKU Code (Optional)',
-                        hintText: 'Leave empty to auto-generate',
                       ),
-                    ),
-                    const SizedBox(height: 10),
+                      const SizedBox(height: 16),
 
-                    // --- Category ---
-                    TextFormField(
-                      controller: categoryController,
-                      enabled: !isSaving,
-                      decoration: const InputDecoration(labelText: 'Category'),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // --- Available Stock (kg) ---
-                    TextFormField(
-                      controller: stockController,
-                      enabled: !isSaving,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Available Stock (kg) *',
-                        hintText: 'e.g. 100',
+                      // --- Category ---
+                      TextFormField(
+                        controller: categoryController,
+                        enabled: !isSaving,
+                        decoration: const InputDecoration(labelText: 'Category'),
                       ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Required';
-                        final num = double.tryParse(v.trim());
-                        if (num == null || num < 0) return 'Enter a valid positive stock in kg';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 10),
+                      const SizedBox(height: 16),
 
-                    // --- Package Sizes ---
-                    TextFormField(
-                      controller: packageSizesController,
-                      enabled: !isSaving,
-                      decoration: const InputDecoration(
-                        labelText: 'Package Sizes (e.g. 100g, 500g, 1kg)',
+                      // --- Available Stock (kg) ---
+                      TextFormField(
+                        controller: stockController,
+                        enabled: !isSaving,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Available Stock (kg) *',
+                          hintText: 'e.g. 100',
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Required';
+                          final num = double.tryParse(v.trim());
+                          if (num == null || num < 0) return 'Enter a valid positive stock in kg';
+                          return null;
+                        },
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 16),
+
+                      // --- Package Sizes ---
+                      TextFormField(
+                        controller: packageSizesController,
+                        enabled: !isSaving,
+                        decoration: const InputDecoration(
+                          labelText: 'Package Sizes (e.g. 100g, 500g, 1kg)',
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
+            actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
             actions: [
               TextButton(
                 onPressed: isSaving ? null : () => Navigator.pop(ctx),
@@ -450,26 +437,34 @@ class _ProductsScreenState extends State<ProductsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Remove Product'),
-        content: Text('Are you sure you want to remove "${prod.name}" (${prod.sku})?'),
+        title: const Text('Delete Product'),
+        content: Text(
+          'Are you sure you want to permanently delete "${prod.name}" (${prod.sku})? This action cannot be undone.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               Navigator.pop(ctx);
               final adminProvider = Provider.of<AdminProvider>(context, listen: false);
-              final success = await adminProvider.deleteProduct(prod.id);
+              final errorMessage = await adminProvider.deleteProduct(prod.id);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(success ? 'Product removed' : 'Failed to remove product'),
-                    backgroundColor: success ? AppTheme.primaryLight : Colors.redAccent,
+                    content: Text(
+                      errorMessage ?? 'Product permanently deleted',
+                    ),
+                    backgroundColor: errorMessage == null ? AppTheme.primaryLight : Colors.redAccent,
+                    duration: Duration(seconds: errorMessage == null ? 3 : 5),
                   ),
                 );
               }
             },
-            child: const Text('Remove'),
+            child: const Text('Delete'),
           ),
         ],
       ),

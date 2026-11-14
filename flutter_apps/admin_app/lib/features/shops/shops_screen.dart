@@ -44,7 +44,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Select a field sales officer to manage this dealer:'),
+              const Text('Select a field sales officer to manage this shop owner:'),
               const SizedBox(height: 12),
               DropdownButtonFormField<int?>(
                 initialValue: selectedExecutiveId,
@@ -103,7 +103,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Register Dealer / Shop', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          title: const Text('Register Shop Owner', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
@@ -118,8 +118,8 @@ class _ShopsScreenState extends State<ShopsScreen> {
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: ownerNameController,
-                    decoration: const InputDecoration(labelText: 'Owner Full Name *'),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                    decoration: const InputDecoration(labelText: 'Owner Full Name (Optional)'),
+                    validator: null,
                   ),
                   const SizedBox(height: 10),
                   TextFormField(
@@ -166,16 +166,15 @@ class _ShopsScreenState extends State<ShopsScreen> {
                   : () async {
                       if (!formKey.currentState!.validate()) return;
                       setDialogState(() => isSaving = true);
-
-                      final payload = {
+                      final ownerName = ownerNameController.text.trim();
+                      final payload = <String, dynamic>{
                         'shop_name': shopNameController.text.trim(),
-                        'owner_name': ownerNameController.text.trim(),
+                        if (ownerName.isNotEmpty) 'owner_name': ownerName,
                         'phone': phoneController.text.trim(),
                         'username': usernameController.text.trim(),
                         'market_location': locationController.text.trim(),
                         'address': addressController.text.trim(),
                       };
-
                       final adminProvider = Provider.of<AdminProvider>(context, listen: false);
                       final scaffoldMessenger = ScaffoldMessenger.of(context);
                       final success = await adminProvider.createShop(payload);
@@ -186,7 +185,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                       if (mounted) {
                         scaffoldMessenger.showSnackBar(
                           SnackBar(
-                            content: Text(success ? 'Dealer created successfully' : 'Failed to create dealer'),
+                            content: Text(success ? 'Shop Owner registered successfully' : 'Failed to register shop owner'),
                             backgroundColor: success ? AppTheme.primaryLight : Colors.redAccent,
                           ),
                         );
@@ -194,7 +193,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                     },
               child: isSaving
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Register Dealer'),
+                  : const Text('Register Shop Owner'),
             ),
           ],
         ),
@@ -210,7 +209,6 @@ class _ShopsScreenState extends State<ShopsScreen> {
       return _searchQuery.isEmpty ||
           s.shopName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           s.ownerName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          s.dealerCode.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           s.marketLocation.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           s.phone.contains(_searchQuery);
     }).toList();
@@ -220,7 +218,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppTheme.primaryGreen,
         icon: const Icon(Icons.add_business, color: Colors.white),
-        label: const Text('Register Dealer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        label: const Text('Register Shop Owner', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         onPressed: _showAddShopDialog,
       ),
       body: Column(
@@ -232,7 +230,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
               controller: _searchController,
               onChanged: (v) => setState(() => _searchQuery = v.trim()),
               decoration: InputDecoration(
-                hintText: 'Search dealer by name, shop, code or city...',
+                hintText: 'Search shop owner by name, shop, code or city...',
                 prefixIcon: const Icon(Icons.search, size: 20),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
@@ -260,7 +258,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                             children: [
                               Icon(Icons.store_mall_directory_outlined, size: 54, color: Colors.grey.shade400),
                               const SizedBox(height: 8),
-                              const Text('No dealers found', style: TextStyle(color: AppTheme.textMuted)),
+                              const Text('No shop owners found', style: TextStyle(color: AppTheme.textMuted)),
                             ],
                           ),
                         )
@@ -285,22 +283,6 @@ class _ShopsScreenState extends State<ShopsScreen> {
                                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                           ),
                                         ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: Colors.blue.shade50,
-                                            borderRadius: BorderRadius.circular(6),
-                                            border: Border.all(color: Colors.blue.shade200),
-                                          ),
-                                          child: Text(
-                                            shop.dealerCode,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.blue.shade800,
-                                            ),
-                                          ),
-                                        ),
                                       ],
                                     ),
                                     const SizedBox(height: 6),
@@ -308,7 +290,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                                       children: [
                                         const Icon(Icons.person_outline, size: 16, color: AppTheme.textMuted),
                                         const SizedBox(width: 4),
-                                        Text('Owner: ${shop.ownerName}', style: const TextStyle(fontSize: 13)),
+                                        Text(shop.ownerName.isNotEmpty ? 'Owner: ${shop.ownerName}' : 'Owner: (Not specified)', style: const TextStyle(fontSize: 13)),
                                         const Spacer(),
                                         const Icon(Icons.phone_outlined, size: 16, color: AppTheme.textMuted),
                                         const SizedBox(width: 4),
@@ -366,6 +348,203 @@ class _ShopsScreenState extends State<ShopsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showEditShopDialog(ShopModel shop) {
+    final adminProvider = Provider.of<AdminProvider>(context, listen: false);
+    final ownerNameController = TextEditingController(text: shop.ownerName);
+    final shopNameController = TextEditingController(text: shop.shopName);
+    final phoneController = TextEditingController(text: shop.phone);
+    final usernameController = TextEditingController(text: shop.username ?? '');
+    final emailController = TextEditingController(text: shop.email ?? '');
+    final addressController = TextEditingController(text: shop.address);
+    final marketLocationController = TextEditingController(text: shop.marketLocation);
+    int? selectedExecutiveId = shop.assignedExecutiveId;
+    final formKey = GlobalKey<FormState>();
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.store, color: AppTheme.primaryGreen),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Edit Shop: ${shop.shopName}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Container(
+            constraints: const BoxConstraints(maxWidth: 500),
+            width: double.maxFinite,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: shopNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Shop Name *',
+                        prefixIcon: Icon(Icons.storefront_outlined),
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Shop Name is required' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: ownerNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Owner Full Name (Optional)',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: phoneController,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone (10 digits) *',
+                        prefixIcon: Icon(Icons.phone_outlined),
+                        prefixText: '+91 ',
+                      ),
+                      validator: (v) {
+                        final val = v?.trim() ?? '';
+                        if (val.isEmpty) return 'Phone number is required';
+                        final digits = val.replaceAll(RegExp(r'\\D'), '');
+                        if (digits.length != 10) return 'Phone must be exactly 10 digits';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: usernameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Username (Optional)',
+                        prefixIcon: Icon(Icons.alternate_email),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'Email (Optional)',
+                        prefixIcon: Icon(Icons.email_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: marketLocationController,
+                      decoration: const InputDecoration(
+                        labelText: 'Market Location *',
+                        prefixIcon: Icon(Icons.place_outlined),
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Market Location is required' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: addressController,
+                      decoration: const InputDecoration(
+                        labelText: 'Address',
+                        prefixIcon: Icon(Icons.home_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int?>(
+                      initialValue: selectedExecutiveId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Assigned Executive',
+                        prefixIcon: Icon(Icons.person_pin_outlined),
+                      ),
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text('Unassigned'),
+                        ),
+                        ...adminProvider.employees.map(
+                          (emp) => DropdownMenuItem<int?>(
+                            value: emp.id,
+                            child: Text('${emp.fullName} (${emp.assignedTerritory})'),
+                          ),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        setDialogState(() => selectedExecutiveId = val);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDialogState(() => isSaving = true);
+                      final phoneDigits = phoneController.text.trim().replaceAll(RegExp(r'\\D'), '');
+                      final payload = <String, dynamic>{
+                        'shop_name': shopNameController.text.trim(),
+                        'phone': phoneDigits,
+                        'owner_name': ownerNameController.text.trim(),
+                        'market_location': marketLocationController.text.trim(),
+                        'address': addressController.text.trim(),
+                        'assigned_executive_id': selectedExecutiveId,
+                      };
+                      if (usernameController.text.trim().isNotEmpty) {
+                        payload['username'] = usernameController.text.trim();
+                      }
+                      if (emailController.text.trim().isNotEmpty) {
+                        payload['email'] = emailController.text.trim();
+                      }
+                      final error = await adminProvider.updateShop(shop.id, payload);
+                      if (!mounted) return;
+                      if (error != null) {
+                        setDialogState(() => isSaving = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(error),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                      } else {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Shop Owner updated successfully'),
+                            backgroundColor: AppTheme.primaryGreen,
+                          ),
+                        );
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Save Changes', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
       ),
     );
   }

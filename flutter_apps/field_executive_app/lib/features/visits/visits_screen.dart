@@ -6,7 +6,9 @@ import '../../services/fe_service.dart';
 import '../../models/visit_model.dart';
 
 class VisitsScreen extends StatefulWidget {
-  const VisitsScreen({super.key});
+  final VoidCallback? onBack;
+
+  const VisitsScreen({super.key, this.onBack});
 
   @override
   State<VisitsScreen> createState() => _VisitsScreenState();
@@ -180,6 +182,17 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F0),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: 'Back',
+          onPressed: () {
+            if (widget.onBack != null) {
+              widget.onBack!();
+            } else if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
         title: const Text('Visits', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: const Color(0xFF0D4A32),
         bottom: TabBar(

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../core/widgets/exit_dialog.dart';
 import 'login_screen.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
@@ -15,21 +17,32 @@ class RoleSelectionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final exit = await showExitConfirmationDialog(context);
+        if (exit) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(
-                Icons.agriculture_rounded,
-                size: 80,
-                color: Colors.green,
+              Center(
+                child: Image.asset(
+                  'assets/images/yhs_logo.png',
+                  height: 240,
+                  fit: BoxFit.contain,
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               const Text(
                 'YADVI SEEDS',
                 textAlign: TextAlign.center,
@@ -50,7 +63,7 @@ class RoleSelectionScreen extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 24),
               const Text(
                 'Login',
                 style: TextStyle(
@@ -92,7 +105,8 @@ class RoleSelectionScreen extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildRoleCard(BuildContext context, {required String title, required IconData icon, required String roleValue}) {

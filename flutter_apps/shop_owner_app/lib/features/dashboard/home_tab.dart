@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../services/shop_service.dart';
 import '../../models/product.dart';
 import '../../models/order.dart';
-import '../cart/cart_screen.dart';
+import '../cart/cart_provider.dart';
 import '../catalogue/product_details_screen.dart';
 
 class HomeTab extends StatefulWidget {
   final Function(int) onTabSelected;
+  final VoidCallback? onBack;
 
-  const HomeTab({super.key, required this.onTabSelected});
+  const HomeTab({super.key, required this.onTabSelected, this.onBack});
 
   @override
   State<HomeTab> createState() => _HomeTabState();
@@ -18,6 +20,7 @@ class _HomeTabState extends State<HomeTab> {
   final ShopService _shopService = ShopService();
   List<Product> _products = [];
   List<Order> _orders = [];
+  String _shopName = 'Shop Owner Portal';
   bool _isLoading = true;
 
   @override
@@ -31,11 +34,16 @@ class _HomeTabState extends State<HomeTab> {
       final results = await Future.wait([
         _shopService.getProducts(),
         _shopService.getOrders(),
+        _shopService.getMyProfile().catchError((_) => <String, dynamic>{}),
       ]);
       if (mounted) {
+        final profile = results[2] as Map<String, dynamic>;
         setState(() {
           _products = results[0] as List<Product>;
           _orders = results[1] as List<Order>;
+          if (profile['shop_name'] != null && profile['shop_name'].toString().trim().isNotEmpty) {
+            _shopName = profile['shop_name'].toString().trim();
+          }
           _isLoading = false;
         });
       }
@@ -55,50 +63,50 @@ class _HomeTabState extends State<HomeTab> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF083C28),
         elevation: 0,
-        title: Row(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: 'Back',
+          onPressed: () {
+            if (widget.onBack != null) {
+              widget.onBack!();
+            } else if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+            Text(
+              _shopName,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
-              child: const Icon(Icons.eco, color: Colors.greenAccent, size: 28),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ABC Seeds & Fertilizers',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    'Authorized Dealer Partner',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white70,
-                    ),
-                  ),
-                ],
+            const Text(
+              'Authorized Shop Owner Partner',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white70,
               ),
             ),
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.shopping_cart_outlined, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const CartScreen()),
-              );
-            },
+          Consumer<CartProvider>(
+            builder: (context, cart, _) => IconButton(
+              icon: Badge(
+                isLabelVisible: cart.totalQuantityCount > 0,
+                label: Text('${cart.totalQuantityCount}'),
+                child: const Icon(Icons.shopping_cart_outlined, color: Colors.white),
+              ),
+              tooltip: 'Shopping Cart',
+              onPressed: () => widget.onTabSelected(2),
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -231,9 +239,9 @@ class _HomeTabState extends State<HomeTab> {
       children: [
         _buildShortcutCard('Seed Catalog', Icons.local_florist_outlined, Colors.green, () => widget.onTabSelected(1)),
         const SizedBox(width: 12),
-        _buildShortcutCard('My Orders', Icons.inventory_2_outlined, Colors.blue, () => widget.onTabSelected(2)),
+        _buildShortcutCard('My Orders', Icons.inventory_2_outlined, Colors.blue, () => widget.onTabSelected(3)),
         const SizedBox(width: 12),
-        _buildShortcutCard('LR Tracking', Icons.local_shipping_outlined, Colors.purple, () => widget.onTabSelected(2)),
+        _buildShortcutCard('LR Tracking', Icons.local_shipping_outlined, Colors.purple, () => widget.onTabSelected(3)),
       ],
     );
   }
@@ -301,7 +309,7 @@ class _HomeTabState extends State<HomeTab> {
               ),
             ),
             TextButton(
-              onPressed: () => widget.onTabSelected(2),
+              onPressed: () => widget.onTabSelected(3),
               style: TextButton.styleFrom(
                 padding: EdgeInsets.zero,
                 minimumSize: Size.zero,

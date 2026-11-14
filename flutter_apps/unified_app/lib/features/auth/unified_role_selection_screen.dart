@@ -1,73 +1,26 @@
 import 'package:flutter/material.dart';
-import '../../core/config/app_config.dart';
+import 'package:flutter/services.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/exit_dialog.dart';
 import 'admin_login_screen.dart';
 import 'role_login_screen.dart';
 
 class UnifiedRoleSelectionScreen extends StatelessWidget {
   const UnifiedRoleSelectionScreen({super.key});
 
-  void _showServerSettings(BuildContext context) {
-    final serverController = TextEditingController(text: AppConfig.apiBaseUrl);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Backend Server URL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Set the FastAPI backend URL (e.g. http://10.0.2.2:8000 for Android emulator or LAN IP for physical device):',
-              style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: serverController,
-              decoration: const InputDecoration(
-                labelText: 'Base URL',
-                hintText: 'http://10.0.2.2:8000',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await AppConfig.resetBaseUrl();
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Reset Default'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (serverController.text.trim().isNotEmpty) {
-                await AppConfig.setCustomBaseUrl(serverController.text.trim());
-              }
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundGrey,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: AppTheme.textMuted),
-            tooltip: 'Server Settings',
-            onPressed: () => _showServerSettings(context),
-          ),
-        ],
-      ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final exit = await showExitConfirmationDialog(context);
+        if (exit) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.backgroundGrey,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -80,21 +33,13 @@ class UnifiedRoleSelectionScreen extends StatelessWidget {
                 children: [
                   // App Brand Icon
                   Center(
-                    child: Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryGreen.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.agriculture_rounded,
-                        size: 46,
-                        color: AppTheme.primaryGreen,
-                      ),
+                    child: Image.asset(
+                      'assets/images/yhs_logo.png',
+                      height: 250,
+                      fit: BoxFit.contain,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   const Text(
                     'YADVI SEEDS',
                     textAlign: TextAlign.center,
@@ -115,7 +60,7 @@ class UnifiedRoleSelectionScreen extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 24),
 
                   const Text(
                     'Select Access Module',
@@ -155,7 +100,7 @@ class UnifiedRoleSelectionScreen extends StatelessWidget {
                   _buildRoleCard(
                     context,
                     title: 'Field Executive (FE)',
-                    subtitle: 'Daily Dealer Visits, Order Booking & Reports',
+                    subtitle: 'Daily Shop Owner Visits, Order Booking & Reports',
                     icon: Icons.badge_outlined,
                     accentColor: Colors.orange.shade800,
                     onTap: () {
@@ -191,20 +136,14 @@ class UnifiedRoleSelectionScreen extends StatelessWidget {
                       );
                     },
                   ),
-
-                  const SizedBox(height: 36),
-                  Text(
-                    'Connected API: ${AppConfig.apiBaseUrl}',
-                    style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
-                    textAlign: TextAlign.center,
-                  ),
                 ],
               ),
             ),
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildRoleCard(

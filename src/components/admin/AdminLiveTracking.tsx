@@ -70,7 +70,7 @@ export const AdminLiveTracking: React.FC = () => {
               </span>
               <span className="flex items-center gap-1.5 font-medium">
                 <span>🏪</span>
-                Dealer Shop Waypoint
+                Shop Owner Waypoint
               </span>
             </div>
             <div>Updated: {selectedEmployee.lastLocationUpdate}</div>

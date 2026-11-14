@@ -7,6 +7,7 @@ import '../models/fe_profile.dart';
 import '../models/visit_model.dart';
 import '../models/order_model.dart';
 import '../models/shipment_model.dart';
+import '../models/shop_model.dart';
 
 class FeService {
   final ApiClient _apiClient = ApiClient();
@@ -20,6 +21,25 @@ class FeService {
     throw Exception('Failed to load profile: ${response.statusCode}');
   }
 
+  Future<FeProfile> updateMyProfile({String? fullName, String? email}) async {
+    final payload = <String, dynamic>{};
+    if (fullName != null) payload['full_name'] = fullName;
+    if (email != null) payload['email'] = email;
+
+    final response = await _apiClient.put('/api/v1/employees/me', payload);
+    if (response.statusCode == 200) {
+      return FeProfile.fromJson(jsonDecode(response.body));
+    }
+    String msg = 'Failed to update profile (${response.statusCode})';
+    try {
+      final err = jsonDecode(response.body);
+      if (err is Map && err['detail'] != null) {
+        msg = err['detail'].toString();
+      }
+    } catch (_) {}
+    throw Exception(msg);
+  }
+
   Future<List<VisitModel>> getVisits() async {
     final response = await _apiClient.get('/api/v1/visits');
     if (response.statusCode == 200) {
@@ -27,6 +47,69 @@ class FeService {
       return data.map((j) => VisitModel.fromJson(j)).toList();
     }
     throw Exception('Failed to load visits: ${response.statusCode}');
+  }
+
+  Future<List<ShopModel>> getShops({bool allShops = true}) async {
+    final response = await _apiClient.get('/api/v1/shops${allShops ? '?all_shops=true' : ''}');
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      return data.map((j) => ShopModel.fromJson(j)).toList();
+    }
+    throw Exception('Failed to load shops: ${response.statusCode}');
+  }
+
+  Future<VisitModel> createPlannedVisit({
+    required int shopId,
+    String? purpose,
+    String? notes,
+  }) async {
+    final response = await _apiClient.post(
+      '/api/v1/visits',
+      {
+        'shop_id': shopId,
+        if (purpose != null && purpose.isNotEmpty) 'purpose': purpose,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    );
+    if (response.statusCode == 200) {
+      return VisitModel.fromJson(jsonDecode(response.body));
+    }
+    try {
+      final errorData = jsonDecode(response.body);
+      final detail = errorData['detail'] ?? 'Failed to add visit plan';
+      throw Exception(detail);
+    } catch (e) {
+      if (e is Exception && !e.toString().contains('FormatException')) {
+        rethrow;
+      }
+      throw Exception('Failed to add visit plan: ${response.statusCode}');
+    }
+  }
+
+  Future<void> submitEodReport({
+    required int completedVisits,
+    required int pendingVisits,
+    required int totalBagsOrdered,
+    String? notes,
+  }) async {
+    final response = await _apiClient.post(
+      '/api/v1/eod',
+      {
+        'completed_visits': completedVisits,
+        'pending_visits': pendingVisits,
+        'total_bags_ordered': totalBagsOrdered,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    );
+    if (response.statusCode != 200) {
+      try {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['detail'] ?? 'Failed to submit EOD report: ${response.statusCode}');
+      } catch (e) {
+        if (e is Exception && !e.toString().contains('FormatException')) rethrow;
+        throw Exception('Failed to submit EOD report: ${response.statusCode}');
+      }
+    }
   }
 
   Future<VisitModel> uploadVisitPhoto(int visitId, {required double lat, required double lng, required String photoPath, String? notes}) async {
@@ -121,12 +204,10 @@ class FeService {
 
   Future<void> startDailyGps() async {
     if (_isGpsActive) return;
-    print('Starting FE Daily GPS tracking (Background Service)...');
 
     // Request permissions in foreground first
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      print('Location services disabled.');
       return;
     }
 
@@ -134,24 +215,31 @@ class FeService {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        print('Location permissions denied.');
         return;
       }
     }
 
-    final service = FlutterBackgroundService();
-    bool isRunning = await service.isRunning();
-    if (!isRunning) {
-      await service.startService();
+    try {
+      final service = FlutterBackgroundService();
+      bool isRunning = await service.isRunning();
+      if (!isRunning) {
+        await service.startService();
+      }
+    } catch (_) {
+      // Background service supported on mobile platforms
     }
 
     _isGpsActive = true;
   }
 
   void stopDailyGps() {
-    print('Stopping FE Daily GPS tracking (Background Service)...');
-    final service = FlutterBackgroundService();
-    service.invoke('stopService');
+    if (!_isGpsActive) return;
+    try {
+      final service = FlutterBackgroundService();
+      service.invoke('stopService');
+    } catch (_) {
+      // Ignored on unsupported platforms or during testing
+    }
     _isGpsActive = false;
   }
 }

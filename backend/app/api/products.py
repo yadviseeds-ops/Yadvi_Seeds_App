@@ -54,7 +54,7 @@ class ProductOut(BaseModel):
     sku: str
     category: str
     image_url: str
-    available_stock_kg: float
+    available_stock_kg: Optional[float] = None
     available_stock_bags: Optional[int] = 0
     germination_rate: str
     purity: str
@@ -249,13 +249,38 @@ def delete_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(["administrator"]))
 ):
-    """Soft delete a product — Admin only."""
+    """
+    Permanently delete a product if no historical customer orders exist — Admin only.
+    Rejects deletion if the product is referenced by order items.
+    """
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    product.is_active = False
-    db.commit()
-    return {"success": True, "detail": "Product removed"}
+
+    from app.models.all_models import OrderItem, Inventory
+
+    has_order_items = db.query(OrderItem).filter(OrderItem.product_id == product.id).first() is not None
+    if has_order_items:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete Product with existing customer orders. Order history must be preserved."
+        )
+
+    try:
+        # Delete warehouse inventory staging batches for this product
+        db.query(Inventory).filter(Inventory.product_id == product.id).delete(synchronize_session="fetch")
+
+        # Delete product
+        db.delete(product)
+
+        db.commit()
+        return {"success": True, "detail": "Product permanently deleted"}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error deleting product: {str(exc)}")
 
 
 @router.post("/upload-image")

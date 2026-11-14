@@ -12,6 +12,7 @@ import warnings
 warnings.filterwarnings("ignore", message=".*error reading bcrypt version.*")
 import logging
 logging.getLogger("passlib.handlers.bcrypt").setLevel(logging.ERROR)
+logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/token", auto_error=False)

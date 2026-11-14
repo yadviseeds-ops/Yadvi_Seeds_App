@@ -20,6 +20,7 @@ class ShopModel {
   final String? email;
   final int? assignedExecutiveId;
   final String? assignedExecutiveName;
+  final String? username;
 
   ShopModel({
     required this.id,
@@ -43,6 +44,7 @@ class ShopModel {
     this.email,
     this.assignedExecutiveId,
     this.assignedExecutiveName,
+    this.username,
   });
 
   factory ShopModel.fromJson(Map<String, dynamic> json) {
@@ -68,6 +70,7 @@ class ShopModel {
       email: json['email']?.toString(),
       assignedExecutiveId: json['assigned_executive_id'],
       assignedExecutiveName: json['assigned_executive_name']?.toString(),
+      username: json['username']?.toString(),
     );
   }
 }

@@ -21,7 +21,7 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=True, index=True)
     phone = Column(String(20), unique=True, nullable=False, index=True)
     username = Column(String(50), unique=True, nullable=True, index=True)
-    full_name = Column(String(100), nullable=False)
+    full_name = Column(String(100), nullable=True)
     hashed_password = Column(String(255), nullable=True)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     is_active = Column(Boolean, default=True)
@@ -32,6 +32,7 @@ class User(Base):
     shop_profile = relationship("ShopOwner", back_populates="user", uselist=False)
     field_profile = relationship("FieldExecutive", back_populates="user", uselist=False)
     fcm_tokens = relationship("FCMDeviceToken", back_populates="user")
+    admin_phones = relationship("AdminPhone", back_populates="user", cascade="all, delete-orphan")
 
 class ShopOwner(Base):
     __tablename__ = "shop_owners"
@@ -66,7 +67,7 @@ class FieldExecutive(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     employee_code = Column(String(50), unique=True, nullable=False)
-    designation = Column(String(100), default="Field Sales Officer")
+    designation = Column(String(100), default="Field Executive")
     assigned_territory = Column(String(100), nullable=False)
     current_lat = Column(Float, nullable=True)
     current_lng = Column(Float, nullable=True)
@@ -271,3 +272,16 @@ class EODReport(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     executive = relationship("FieldExecutive")
+
+class AdminPhone(Base):
+    __tablename__ = "admin_phones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    phone = Column(String(20), unique=True, nullable=False, index=True)
+    label = Column(String(50), nullable=True, default="Admin Mobile")
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="admin_phones")
+

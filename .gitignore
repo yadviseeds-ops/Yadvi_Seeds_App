@@ -27,6 +27,10 @@ dist-ssr
 __pycache__/
 *.py[cod]
 
+# Binaries & APKs
+*.apk
+*.aab
+
 # Local database
 backend/*.db
 
@@ -48,6 +52,10 @@ flutter_apps/**/ios/Pods/
 # Python cache
 __pycache__/
 *.py[cod]
+
+# Binaries & APKs
+*.apk
+*.aab
 
 # Local databases and backups
 *.db

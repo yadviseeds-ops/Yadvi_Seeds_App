@@ -130,10 +130,6 @@ export const AdminShopOwners: React.FC = () => {
     e.preventDefault();
     setAddError(null);
 
-    if (!addForm.owner_name || !addForm.owner_name.trim()) {
-      setAddError('Owner Name is mandatory. Please fill it.');
-      return;
-    }
     if (!addForm.phone || !addForm.phone.trim()) {
       setAddError('Phone Number is mandatory. Please fill it.');
       return;
@@ -497,7 +493,7 @@ export const AdminShopOwners: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-slate-600 uppercase">
-                    Owner Name <span className="text-red-500 font-bold">*</span>
+                    Owner Name (Optional)
                   </label>
                   <input
                     value={addForm.owner_name}
@@ -645,7 +641,7 @@ export const AdminShopOwners: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-slate-600 uppercase">
-                    Owner Name <span className="text-red-500 font-bold">*</span>
+                    Owner Name (Optional)
                   </label>
                   <input
                     value={editForm.owner_name}

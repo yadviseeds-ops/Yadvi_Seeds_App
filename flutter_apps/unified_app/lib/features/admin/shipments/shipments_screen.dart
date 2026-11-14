@@ -82,7 +82,7 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
                                 ],
                               ),
                               const SizedBox(height: 6),
-                              Text('Dealer: ${s.shopName} • ${s.shopLocation}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                              Text('Shop Owner: ${s.shopName} • ${s.shopLocation}', style: const TextStyle(fontWeight: FontWeight.w600)),
                               const SizedBox(height: 4),
                               Text(
                                 'Transporter: ${s.transporterName} • LR: ${s.lrNumber}',

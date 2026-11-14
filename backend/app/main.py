@@ -93,20 +93,24 @@ else:
 
 
 # Private Visit-Photo Delivery: Authenticated streaming endpoint (CR-01 & CR-04)
-# Enforces strict header-based JWT auth, visit-record verification, and role-based access.
+# Enforces strict header-based JWT auth or query-token auth, visit-record verification, and role-based access.
 # Streams media in memory-bounded chunks with safe non-caching headers.
 @app.get("/public/visits/{filename}")
 async def get_visit_photo(
     filename: str,
+    token: Optional[str] = Query(None),
     auth_header: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
-    if not auth_header:
+    raw_token = token
+    if not raw_token and auth_header:
+        raw_token = auth_header.replace("Bearer ", "").strip() if auth_header.startswith("Bearer ") else auth_header.strip()
+
+    if not raw_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication token required to access visit verification photos."
         )
-    raw_token = auth_header.replace("Bearer ", "").strip() if auth_header.startswith("Bearer ") else auth_header.strip()
     try:
         payload = jwt.decode(raw_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = int(payload.get("sub"))

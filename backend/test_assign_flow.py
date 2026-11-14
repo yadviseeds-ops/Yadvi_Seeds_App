@@ -19,7 +19,6 @@ new_shop = {
     "phone": "9999999999",
     "username": "newshop_test",
     "shop_name": "Brand New Shop Test",
-    "dealer_code": "DLR-9999",
     "market_location": "Test City",
     "address": "123 Test St"
 }

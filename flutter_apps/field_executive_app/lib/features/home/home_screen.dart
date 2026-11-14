@@ -5,7 +5,9 @@ import '../../models/visit_model.dart';
 import '../../models/order_model.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final VoidCallback? onBack;
+
+  const HomeScreen({super.key, this.onBack});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -62,6 +64,17 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverAppBar(
               expandedHeight: 140,
               pinned: true,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                tooltip: 'Back',
+                onPressed: () {
+                  if (widget.onBack != null) {
+                    widget.onBack!();
+                  } else if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
               backgroundColor: const Color(0xFF0D4A32),
               flexibleSpace: FlexibleSpaceBar(
                 background: Container(
@@ -78,34 +91,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              const CircleAvatar(
-                                backgroundColor: Color(0xFF2EA86A),
-                                radius: 22,
-                                child: Icon(Icons.person, color: Colors.white, size: 26),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _isLoading ? 'Loading...' : 'Good Day, ${_profile?.fullName.split(' ').first ?? 'Executive'}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      _profile?.designation ?? '',
-                                      style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                          Text(
+                            _isLoading ? 'Loading...' : 'Good Day, ${_profile?.fullName.split(' ').first ?? 'Executive'}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _profile?.designation ?? '',
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12),
                           ),
                         ],
                       ),

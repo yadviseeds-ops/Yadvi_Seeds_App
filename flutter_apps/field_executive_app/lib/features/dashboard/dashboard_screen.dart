@@ -11,6 +11,9 @@ import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import '../../services/fe_service.dart';
 
+import 'package:flutter/services.dart';
+import '../../core/widgets/exit_dialog.dart';
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -20,12 +23,42 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
+  final List<int> _tabHistory = [0];
   Timer? _locationTimer;
 
   @override
   void initState() {
     super.initState();
     _startForegroundLocationSync();
+  }
+
+  void _onTabTapped(int index) {
+    if (_currentIndex != index) {
+      setState(() {
+        _currentIndex = index;
+        if (_tabHistory.isEmpty || _tabHistory.last != index) {
+          _tabHistory.add(index);
+        }
+      });
+    }
+  }
+
+  Future<void> _handleBack() async {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
+    if (_tabHistory.length > 1) {
+      setState(() {
+        _tabHistory.removeLast();
+        _currentIndex = _tabHistory.last;
+      });
+    } else {
+      final exit = await showExitConfirmationDialog(context);
+      if (exit) {
+        SystemNavigator.pop();
+      }
+    }
   }
 
   void _startForegroundLocationSync() {
@@ -54,14 +87,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const TodaysPlanScreen(),
-    const VisitsScreen(),
-    const OrdersScreen(),
-    const EodReportScreen(),
-    const ProfileScreen(),
-    const HelpSupportScreen(),
+  late final List<Widget> _screens = [
+    HomeScreen(onBack: _handleBack),
+    TodaysPlanScreen(onBack: _handleBack),
+    VisitsScreen(onBack: _handleBack),
+    OrdersScreen(onBack: _handleBack),
+    EodReportScreen(onBack: _handleBack),
+    ProfileScreen(onBack: _handleBack),
+    HelpSupportScreen(onBack: _handleBack),
   ];
 
   final List<BottomNavigationBarItem> _navItems = const [
@@ -76,20 +109,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF0D4A32),
-        unselectedItemColor: Colors.grey,
-        selectedFontSize: 10,
-        unselectedFontSize: 9,
-        items: _navItems,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _handleBack();
+      },
+      child: Scaffold(
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _screens,
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: _onTabTapped,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: const Color(0xFF0D4A32),
+          unselectedItemColor: Colors.grey,
+          selectedFontSize: 10,
+          unselectedFontSize: 9,
+          items: _navItems,
+        ),
       ),
     );
   }

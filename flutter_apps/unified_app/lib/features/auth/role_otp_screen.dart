@@ -91,7 +91,11 @@ class _RoleOtpScreenState extends State<RoleOtpScreen> {
   Future<void> _resendOtp() async {
     setState(() => _isResending = true);
     try {
-      await widget.authService.requestOtp(widget.username, widget.mobile);
+      await widget.authService.requestOtp(
+        widget.username,
+        widget.mobile,
+        expectedRole: widget.roleValue,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('OTP resent successfully.'), backgroundColor: AppTheme.primaryLight),
@@ -170,12 +174,8 @@ class _RoleOtpScreenState extends State<RoleOtpScreen> {
                   const SizedBox(height: 20),
 
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Change Number'),
-                      ),
                       TextButton(
                         onPressed: _isResending ? null : _resendOtp,
                         child: _isResending

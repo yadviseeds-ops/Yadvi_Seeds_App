@@ -346,7 +346,7 @@ export const AdminEmployees: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-slate-400 font-medium">Assigned Shops:</span>
-                  <div className="font-bold text-slate-900 mt-0.5">{selectedEmployee.assignedShopsCount} Dealers</div>
+                  <div className="font-bold text-slate-900 mt-0.5">{selectedEmployee.assignedShopsCount} Shop Owners</div>
                 </div>
                 <div>
                   <span className="text-slate-400 font-medium">Visits Completed:</span>

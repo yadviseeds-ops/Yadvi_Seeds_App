@@ -4,6 +4,7 @@
 class FeProfile {
   final int id;
   final int userId;
+  final String username;
   final String employeeCode;
   final String designation;
   final String assignedTerritory;
@@ -19,6 +20,7 @@ class FeProfile {
   FeProfile({
     required this.id,
     required this.userId,
+    this.username = '',
     required this.employeeCode,
     required this.designation,
     required this.assignedTerritory,
@@ -36,6 +38,7 @@ class FeProfile {
     return FeProfile(
       id: json['id'],
       userId: json['user_id'],
+      username: json['username'] ?? json['employee_code'] ?? '',
       employeeCode: json['employee_code'] ?? '',
       designation: json['designation'] ?? '',
       assignedTerritory: json['assigned_territory'] ?? '',

@@ -227,7 +227,9 @@ class GCSStorageBackend(MediaStorage):
     """Google Cloud Storage backend for production Cloud Run deployment."""
 
     def __init__(self, bucket_name: str, project_id: Optional[str] = None):
-        self.bucket_name = bucket_name
+        # Sanitize bucket name defensively against trailing options or spaces
+        cleaned = str(bucket_name).strip().split()[0].split(",")[0].strip()
+        self.bucket_name = cleaned
         self.project_id = project_id
         self._client = None
         self._bucket = None
@@ -335,18 +337,29 @@ def get_media_storage() -> MediaStorage:
 
     from app.core.config import settings
 
-    backend_mode = (getattr(settings, "STORAGE_BACKEND", None) or "local").strip().lower()
+    raw_bucket = getattr(settings, "GCS_MEDIA_BUCKET", None)
+    raw_backend = getattr(settings, "STORAGE_BACKEND", None)
+
+    bucket = None
+    if raw_bucket and str(raw_bucket).strip():
+        cleaned_token = str(raw_bucket).strip().split()[0].split(",")[0].strip()
+        if cleaned_token:
+            bucket = cleaned_token
+
+    if (not raw_backend or raw_backend.strip().lower() == "local") and bucket:
+        backend_mode = "gcs"
+    else:
+        backend_mode = (raw_backend or "local").strip().lower()
 
     if backend_mode == "gcs":
-        bucket = getattr(settings, "GCS_MEDIA_BUCKET", None)
-        if not bucket or not str(bucket).strip():
+        if not bucket:
             raise RuntimeError(
                 "Invalid media storage configuration: STORAGE_BACKEND is set to 'gcs', "
                 "but GCS_MEDIA_BUCKET is missing or empty."
             )
         logger.info(f"Initializing GCS Media Storage Backend (bucket={bucket})")
         _storage_instance = GCSStorageBackend(
-            bucket_name=bucket.strip(),
+            bucket_name=bucket,
             project_id=getattr(settings, "GCS_PROJECT_ID", None),
         )
     elif backend_mode == "local":

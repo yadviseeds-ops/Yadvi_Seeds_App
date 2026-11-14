@@ -16,6 +16,25 @@ class FeService {
     throw Exception('Failed to load profile: ${response.statusCode}');
   }
 
+  Future<FeProfile> updateMyProfile({String? fullName, String? email}) async {
+    final payload = <String, dynamic>{};
+    if (fullName != null) payload['full_name'] = fullName;
+    if (email != null) payload['email'] = email;
+
+    final response = await _apiClient.put('/api/v1/employees/me', payload);
+    if (response.statusCode == 200) {
+      return FeProfile.fromJson(jsonDecode(response.body));
+    }
+    String msg = 'Failed to update profile (${response.statusCode})';
+    try {
+      final err = jsonDecode(response.body);
+      if (err is Map && err['detail'] != null) {
+        msg = err['detail'].toString();
+      }
+    } catch (_) {}
+    throw Exception(msg);
+  }
+
   Future<List<VisitModel>> getVisits() async {
     final response = await _apiClient.get('/api/v1/visits');
     if (response.statusCode == 200) {

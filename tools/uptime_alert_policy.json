@@ -1,0 +1,36 @@
+{
+  "displayName": "Yadvi API Uptime Failure Alert",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Uptime check failed for 2 consecutive periods",
+      "conditionThreshold": {
+        "filter": "metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\" AND metric.label.check_id=\"yadvi-api-uptime-check-yzsKOBj2Fro\" AND resource.type=\"uptime_url\"",
+        "comparison": "COMPARISON_LT",
+        "thresholdValue": 1.0,
+        "duration": "600s",
+        "trigger": {
+          "count": 1
+        },
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_FRACTION_TRUE",
+            "crossSeriesReducer": "REDUCE_MEAN",
+            "groupByFields": [
+              "resource.label.host"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "notificationChannels": [
+    "projects/yadvi-seed-app-5f306/notificationChannels/11975128549563013333"
+  ],
+  "documentation": {
+    "content": "The YADVI Seeds Cloud Run API service is failing uptime checks on https://yadvi-day1-test-f5upp75xna-el.a.run.app/. Please check Cloud Run revision status and Cloud SQL connectivity.",
+    "mimeType": "text/markdown"
+  },
+  "enabled": true
+}

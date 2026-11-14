@@ -10,6 +10,8 @@ import 'package:unified_app/models/product_model.dart';
 import 'package:unified_app/models/employee_model.dart';
 import 'package:unified_app/features/cart/cart_provider.dart';
 import 'package:unified_app/models/product.dart';
+import 'package:unified_app/features/auth/role_otp_screen.dart';
+import 'package:unified_app/core/auth/auth_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -33,11 +35,11 @@ void main() {
       expect(find.text('Field Executive (FE)'), findsOneWidget);
       expect(find.text('Shop Owner (SO)'), findsOneWidget);
 
-      // Verify connected API footer is displayed
-      expect(find.textContaining('Connected API:'), findsOneWidget);
+      // Verify connected API footer is completely removed
+      expect(find.textContaining('Connected API:'), findsNothing);
     });
 
-    testWidgets('Server Settings button opens configurable backend dialog',
+    testWidgets('Settings gear and Backend Server URL dialog are absent from role-selection UI',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         const MaterialApp(
@@ -45,18 +47,12 @@ void main() {
         ),
       );
 
-      final settingsBtn = find.byTooltip('Server Settings');
-      expect(settingsBtn, findsOneWidget);
-
-      await tester.tap(settingsBtn);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Backend Server URL'), findsOneWidget);
-      expect(find.text('Save'), findsOneWidget);
-      expect(find.text('Reset Default'), findsOneWidget);
+      expect(find.byTooltip('Server Settings'), findsNothing);
+      expect(find.byIcon(Icons.settings_outlined), findsNothing);
+      expect(find.text('Backend Server URL'), findsNothing);
     });
 
-    testWidgets('Admin Login screen offers Firebase Phone OTP only without password login UI',
+    testWidgets('Admin Login screen offers cleaned Firebase Phone OTP UI with blank fields by default',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         MultiProvider(
@@ -71,15 +67,63 @@ void main() {
 
       // Verify OTP UI Elements
       expect(find.text('System Administration Console'), findsOneWidget);
-      expect(find.text('Firebase Phone OTP Authentication'), findsOneWidget);
       expect(find.text('Admin Username'), findsOneWidget);
       expect(find.text('Registered Mobile Number'), findsOneWidget);
       expect(find.text('Send Verification OTP'), findsOneWidget);
+
+      // Verify removed UI elements are completely absent
+      expect(find.text('Firebase Phone OTP Authentication'), findsNothing);
+      expect(find.text('Authorized: '), findsNothing);
+      expect(find.text('9529403798'), findsNothing);
+      expect(find.text('8080259924'), findsNothing);
+      expect(find.textContaining('Connected API:'), findsNothing);
 
       // Verify Password Login UI is completely absent
       expect(find.text('Password Fallback'), findsNothing);
       expect(find.text('Login with Password'), findsNothing);
       expect(find.byType(TabBar), findsNothing);
+
+      // Verify initial fields are blank (neither 'ADMIN' nor phone numbers prefilled)
+      expect(find.widgetWithText(TextFormField, 'ADMIN'), findsNothing);
+
+      // Verify entering admin credentials manually into fields
+      final textFields = find.byType(TextFormField);
+      expect(textFields, findsNWidgets(2)); // Username & Mobile fields
+
+      await tester.enterText(textFields.at(0), 'ADMIN');
+      await tester.pump();
+      expect(find.widgetWithText(TextFormField, 'ADMIN'), findsOneWidget);
+
+      await tester.enterText(textFields.at(1), '9529403798');
+      await tester.pump();
+      expect(find.widgetWithText(TextFormField, '9529403798'), findsOneWidget);
+
+      // Verify Change Mobile is absent from Admin Login
+      expect(find.text('Change Mobile'), findsNothing);
+    });
+
+    testWidgets('RoleOtpScreen displays Resend Code and does not display Change Mobile or Change Number',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RoleOtpScreen(
+            username: 'fe_user',
+            mobile: '9876543210',
+            authService: AuthService(),
+            roleValue: 'field_executive',
+            roleTitle: 'Field Executive (FE)',
+          ),
+        ),
+      );
+
+      // Verify OTP screen elements
+      expect(find.text('Enter Verification Code'), findsOneWidget);
+      expect(find.textContaining('9876543210'), findsOneWidget);
+      expect(find.text('Resend Code'), findsOneWidget);
+
+      // Verify Change Mobile / Change Number are completely absent
+      expect(find.text('Change Mobile'), findsNothing);
+      expect(find.text('Change Number'), findsNothing);
     });
   });
 

@@ -76,6 +76,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: const BackButton(color: Colors.black87),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -86,12 +91,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(
-                    Icons.agriculture_rounded,
-                    size: 80,
-                    color: Colors.green,
+                  Center(
+                    child: Image.asset(
+                      'assets/images/yhs_logo.png',
+                      height: 240,
+                      fit: BoxFit.contain,
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   const Text(
                     'YADVI SEEDS',
                     textAlign: TextAlign.center,
@@ -112,7 +119,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 24),
                   TextFormField(
                     controller: _usernameController,
                     decoration: InputDecoration(

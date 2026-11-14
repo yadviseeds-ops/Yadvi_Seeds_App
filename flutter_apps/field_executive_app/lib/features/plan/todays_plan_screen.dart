@@ -4,7 +4,9 @@ import '../../models/visit_model.dart';
 import '../../models/order_model.dart';
 
 class TodaysPlanScreen extends StatefulWidget {
-  const TodaysPlanScreen({super.key});
+  final VoidCallback? onBack;
+
+  const TodaysPlanScreen({super.key, this.onBack});
 
   @override
   State<TodaysPlanScreen> createState() => _TodaysPlanScreenState();
@@ -46,6 +48,17 @@ class _TodaysPlanScreenState extends State<TodaysPlanScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F0),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: 'Back',
+          onPressed: () {
+            if (widget.onBack != null) {
+              widget.onBack!();
+            } else if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
         title: const Text("Today's Plan", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: const Color(0xFF0D4A32),
         actions: [

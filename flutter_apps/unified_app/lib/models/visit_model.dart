@@ -70,8 +70,13 @@ class VisitModel {
 
   bool get isToday {
     final now = DateTime.now();
-    return scheduledDate.year == now.year &&
+    final matchSched = scheduledDate.year == now.year &&
         scheduledDate.month == now.month &&
         scheduledDate.day == now.day;
+    final matchVisited = visitedAt != null &&
+        visitedAt!.year == now.year &&
+        visitedAt!.month == now.month &&
+        visitedAt!.day == now.day;
+    return matchSched || matchVisited;
   }
 }

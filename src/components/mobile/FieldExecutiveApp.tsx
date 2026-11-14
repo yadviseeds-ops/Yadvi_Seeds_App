@@ -128,7 +128,7 @@ export const FieldExecutiveApp: React.FC = () => {
                 <span className="text-[10px] text-emerald-200 font-mono">22 Sep 2026</span>
               </div>
               <div className="text-xl font-black mt-1">Guntur – Nuzvid Corridor</div>
-              <div className="text-xs text-emerald-100/80 mt-0.5">Assigned Target: 5 Dealer Stock Audits</div>
+              <div className="text-xs text-emerald-100/80 mt-0.5">Assigned Target: 5 Shop Owner Stock Audits</div>
 
               <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-emerald-800/80 text-center">
                 <div>
@@ -156,7 +156,7 @@ export const FieldExecutiveApp: React.FC = () => {
                   <Briefcase className="w-4 h-4" />
                 </div>
                 <div className="text-left">
-                  <div className="font-bold text-xs text-slate-900">Dealer Visits</div>
+                  <div className="font-bold text-xs text-slate-900">Shop Owner Visits</div>
                   <div className="text-[10px] text-slate-400">Upload Photo</div>
                 </div>
               </button>
@@ -175,7 +175,7 @@ export const FieldExecutiveApp: React.FC = () => {
               </button>
             </div>
 
-            {/* Next Scheduled Dealer Visit */}
+            {/* Next Scheduled Shop Owner Visit */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-2.5 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-xs text-slate-900">Next Scheduled Visit</span>
@@ -217,7 +217,7 @@ export const FieldExecutiveApp: React.FC = () => {
         {/* ================= TAB 2: VISITS ================= */}
         {activeNav === 'visits' && (
           <div className="p-4 space-y-4">
-            <h3 className="font-bold text-sm text-slate-900">Assigned Dealer Route Plan</h3>
+            <h3 className="font-bold text-sm text-slate-900">Assigned Shop Owner Route Plan</h3>
 
             <div className="space-y-3">
               {execVisits.map((v) => (

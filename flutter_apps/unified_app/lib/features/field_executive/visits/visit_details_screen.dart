@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../models/visit_model.dart';
 import '../../../services/fe_service.dart';
+import '../../../core/config/app_config.dart';
 
 class VisitDetailsScreen extends StatefulWidget {
   final VisitModel visit;
@@ -77,7 +78,7 @@ class _VisitDetailsScreenState extends State<VisitDetailsScreen> {
         return;
       }
 
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      Position position = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
 
       setState(() {
         _selectedImage = image;
@@ -260,7 +261,72 @@ class _VisitDetailsScreenState extends State<VisitDetailsScreen> {
                 ),
               ]
             ] else ...[
-              const Text('This shop has already been visited today.', style: TextStyle(color: Colors.grey, fontSize: 16, fontStyle: FontStyle.italic)),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green, size: 22),
+                        SizedBox(width: 8),
+                        Text(
+                          'Visit Completed',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_visit.visitedAt != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Completed on: ${_visit.visitedAt!.toLocal().toString().split(".")[0]}',
+                        style: const TextStyle(fontSize: 12, color: Colors.black87),
+                      ),
+                    ],
+                    if (_visit.notes != null && _visit.notes!.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Notes: "${_visit.notes}"',
+                        style: const TextStyle(fontSize: 13, color: Colors.black87, fontStyle: FontStyle.italic),
+                      ),
+                    ],
+                    if (_visit.photoUrl != null && _visit.photoUrl!.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Uploaded Visit Photo Proof:',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0D4A32)),
+                      ),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          _visit.photoUrl!.startsWith('http')
+                              ? _visit.photoUrl!
+                              : '${AppConfig.apiBaseUrl}${_visit.photoUrl!.startsWith('/') ? '' : '/'}${_visit.photoUrl!}',
+                          height: 250,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (ctx, err, stack) => Container(
+                            height: 120,
+                            color: Colors.grey.shade200,
+                            alignment: Alignment.center,
+                            child: const Text('Photo proof on server', style: TextStyle(color: Colors.grey)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ]
           ],
         ),

@@ -256,7 +256,7 @@ export const AdminOrders: React.FC = () => {
               {/* Shop info card */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-2 gap-4">
                 <div>
-                  <div className="text-slate-400 font-medium">Dealer Shop:</div>
+                  <div className="text-slate-400 font-medium">Shop Owner:</div>
                   <div className="font-bold text-slate-900 text-sm mt-0.5">{selectedOrder.shopName}</div>
                   <div className="text-slate-500 mt-0.5">Proprietor: {selectedOrder.ownerName}</div>
                   <div className="text-slate-500">{selectedOrder.contactPhone}</div>

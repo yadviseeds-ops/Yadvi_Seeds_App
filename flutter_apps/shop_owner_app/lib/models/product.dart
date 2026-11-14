@@ -54,13 +54,38 @@ class Product {
       purity: json['purity'] ?? '',
       maturityDays: json['maturity_days'] ?? '',
       cropSeason: json['crop_season'] ?? '',
-      availability: json['availability'] ?? '',
+      availability: json['availability'] ?? 'In Stock',
       description: json['description'] ?? '',
-      packageSizes: (json['package_sizes'] as String?)
-              ?.split(',')
-              .map((e) => e.trim())
-              .toList() ??
-          [],
+      packageSizes: (json['package_sizes'] is String)
+          ? (json['package_sizes'] as String)
+              .split(',')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList()
+          : (json['package_sizes'] is List)
+              ? List<String>.from(json['package_sizes'])
+              : [],
     );
+  }
+
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'variety_type': varietyType,
+      'sku': sku,
+      'category': category,
+      'image_url': imageUrl,
+      'available_stock_kg': availableStockKg,
+      'available_stock_bags': availableStockBags,
+      'germination_rate': germinationRate,
+      'purity': purity,
+      'maturity_days': maturityDays,
+      'crop_season': cropSeason,
+      'availability': availability,
+      'description': description,
+      'package_sizes': packageSizes.join(','),
+    };
   }
 }

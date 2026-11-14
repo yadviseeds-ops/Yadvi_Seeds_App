@@ -18,6 +18,11 @@ def mask_db_url(url: str) -> str:
 
 
 def get_engine():
+    if os.getenv("USE_SQLITE", "false").lower() in ("true", "1") and settings.ENVIRONMENT.lower() not in ("production", "staging"):
+        sqlite_url = f"sqlite:///{settings.SQLITE_DB_PATH}"
+        logger.info(f"USE_SQLITE active: utilizing local SQLite engine ({settings.SQLITE_DB_PATH})")
+        return create_engine(sqlite_url, connect_args={"check_same_thread": False})
+
     # Construct primary database connection URL securely using URL.create
     # Automatically handles special characters in passwords and Cloud SQL Unix sockets
     if getattr(settings, "INSTANCE_CONNECTION_NAME", None):

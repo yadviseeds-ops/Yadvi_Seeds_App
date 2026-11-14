@@ -135,13 +135,10 @@ export const ShopOwnerApp: React.FC = () => {
   };
 
   return (
-    <DeviceFrame appName="Yadvi Seeds - Dealer App">
+    <DeviceFrame appName="Yadvi Seeds - Shop Owner App">
       {/* Top Mobile App Header */}
       <header className="bg-[#0b3b2c] text-white px-4 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-md">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-700/80 p-1 flex items-center justify-center border border-emerald-500/30">
-            <Sprout className="w-5 h-5 text-emerald-300" />
-          </div>
           <div>
             <div className="font-bold text-xs leading-none">{currentShopName}</div>
             <div className="text-[10px] text-emerald-200/80 mt-0.5">{currentOwnerName}</div>
@@ -627,7 +624,7 @@ export const ShopOwnerApp: React.FC = () => {
                 <Package className="w-10 h-10 text-slate-300 mx-auto" />
                 <h4 className="font-bold text-xs text-slate-700">No Orders Placed Yet</h4>
                 <p className="text-[11px] text-slate-400">
-                  Select Yadvi hybrid seeds from the catalog to submit your first dealer indent.
+                  Select Yadvi hybrid seeds from the catalog to submit your first shop owner order.
                 </p>
                 <button
                   onClick={() => setActiveNav('products')}
@@ -793,7 +790,7 @@ export const ShopOwnerApp: React.FC = () => {
                       >
                         {selectedOrderForTrack.status === 'Delivered' ? '✓' : '4'}
                       </span>
-                      <div className="font-bold text-xs text-slate-900">Delivered to Dealer</div>
+                      <div className="font-bold text-xs text-slate-900">Delivered to Shop Owner</div>
                       <div className="text-[10px] text-slate-500">Direct shop handover</div>
                     </div>
                   </div>

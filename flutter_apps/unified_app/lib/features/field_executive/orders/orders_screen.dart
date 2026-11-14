@@ -3,14 +3,17 @@ import '../../../services/fe_service.dart';
 import '../../../models/order_model.dart';
 
 class OrdersScreen extends StatefulWidget {
-  const OrdersScreen({super.key});
+  final FeService? feService;
+  final VoidCallback? onBack;
+
+  const OrdersScreen({super.key, this.feService, this.onBack});
 
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();
 }
 
 class _OrdersScreenState extends State<OrdersScreen> {
-  final FeService _feService = FeService();
+  late final FeService _feService;
   List<OrderModel> _orders = [];
   bool _isLoading = true;
   String? _error;
@@ -18,6 +21,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   void initState() {
     super.initState();
+    _feService = widget.feService ?? FeService();
     _fetchOrders();
   }
 
@@ -51,6 +55,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: 'Back',
+          onPressed: () {
+            if (widget.onBack != null) {
+              widget.onBack!();
+            } else if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
         title: const Text('Orders', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF0D4A32),
         elevation: 0,

@@ -59,3 +59,45 @@ def init_firebase() -> bool:
     # 3. Development graceful degradation
     logger.info("Firebase credentials file not configured; push notifications disabled for local development.")
     return False
+
+
+def sync_firebase_phone(old_phone: str, new_phone: str) -> None:
+    """
+    Synchronizes mobile number changes with Firebase Auth.
+    If the old phone exists in Firebase, updates it to the new phone.
+    If the user has never logged in (no Firebase account yet), handles gracefully.
+    """
+    if not is_firebase_initialized():
+        init_firebase()
+    if not is_firebase_initialized():
+        logger.info("Firebase Admin not initialized; skipping phone sync.")
+        return
+
+    try:
+        from firebase_admin import auth as fb_auth
+        if not old_phone or not new_phone:
+            return
+        norm_old = f"+91{old_phone.strip()[-10:]}"
+        norm_new = f"+91{new_phone.strip()[-10:]}"
+        
+        if norm_old == norm_new:
+            return
+
+        try:
+            fb_user = fb_auth.get_user_by_phone_number(norm_old)
+        except Exception:
+            logger.info(f"User with phone {norm_old} not found in Firebase Auth; will be created on next OTP login.")
+            return
+
+        try:
+            existing = fb_auth.get_user_by_phone_number(norm_new)
+            if existing and existing.uid != fb_user.uid:
+                logger.warning(f"Phone {norm_new} is already linked to another Firebase user {existing.uid}.")
+                return
+        except Exception:
+            pass
+
+        fb_auth.update_user(fb_user.uid, phone_number=norm_new)
+        logger.info(f"Successfully updated Firebase Auth phone number for UID {fb_user.uid} from {norm_old} to {norm_new}")
+    except Exception as e:
+        logger.warning(f"Error syncing phone number to Firebase Auth: {e}")

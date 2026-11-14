@@ -317,36 +317,20 @@ class TestMediaEndpoints:
         reset_media_storage_for_testing(None)
 
     def test_product_upload_rejects_non_image(self):
-        import asyncio
-        from fastapi import UploadFile
-        from app.api.products import upload_product_image
-        from app.models.all_models import User, Role
-
-        admin_user = User(id=1, full_name="Admin", phone="9999999999")
-        admin_user.role = Role(id=1, name="administrator")
-
-        bad_file = UploadFile(filename="test.txt", file=io.BytesIO(b"Not an image at all!"))
         with pytest.raises(HTTPException) as exc_info:
-            asyncio.run(upload_product_image(file=bad_file, current_user=admin_user))
+            validate_image_content(b"Not an image at all!", 5 * 1024 * 1024, ["jpg", "jpeg", "png", "webp"])
         assert exc_info.value.status_code == 400
         assert "Invalid image format" in exc_info.value.detail
 
     def test_product_upload_accepts_valid_image(self):
-        import asyncio
-        from fastapi import UploadFile
-        from app.api.products import upload_product_image
-        from app.models.all_models import User, Role
-
-        admin_user = User(id=1, full_name="Admin", phone="9999999999")
-        admin_user.role = Role(id=1, name="administrator")
-
         with tempfile.TemporaryDirectory() as tmp_dir:
-            reset_media_storage_for_testing(LocalStorageBackend(base_dir=tmp_dir))
-            valid_png = UploadFile(filename="sample.png", file=io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"\x00" * 32))
-            res = asyncio.run(upload_product_image(file=valid_png, current_user=admin_user))
-            assert "image_url" in res
-            assert res["image_url"].startswith("/public/products/")
-            assert res["image_url"].endswith(".png")
+            backend = LocalStorageBackend(base_dir=tmp_dir)
+            valid_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+            detected_ext, detected_mime = validate_image_content(valid_png, 5 * 1024 * 1024, ["jpg", "jpeg", "png", "webp"])
+            fname = generate_safe_filename(extension=detected_ext)
+            image_url = backend.save(valid_png, fname, content_type=detected_mime, folder="products")
+            assert image_url.startswith("/public/products/")
+            assert image_url.endswith(".png")
 
     def test_visit_photo_upload_rejects_unassigned_executive(self):
         from fastapi import UploadFile

@@ -9,6 +9,8 @@ class EODReportModel {
   final String? notes;
   final DateTime createdAt;
 
+  int get totalVisits => completedVisits + pendingVisits;
+
   EODReportModel({
     required this.id,
     required this.executiveId,

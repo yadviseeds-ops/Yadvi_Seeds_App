@@ -18,11 +18,13 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   return (
     <header className="bg-white border-b border-slate-200/80 px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-20 shadow-xs">
       {/* Title & Subtitle */}
-      <div>
-        <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-          {title}
-        </h1>
-        <p className="text-xs text-slate-500 font-medium mt-0.5">{subtitle}</p>
+      <div className="flex items-center gap-3">
+        <div>
+          <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            {title}
+          </h1>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">{subtitle}</p>
+        </div>
       </div>
 
       {/* Right Header Actions */}

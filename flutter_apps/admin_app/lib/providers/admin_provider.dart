@@ -259,18 +259,24 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> createEmployee(Map<String, dynamic> payload) async {
+  Future<String?> createEmployee(Map<String, dynamic> payload) async {
     try {
       final res = await _apiClient.post('/api/v1/employees', payload);
       if (res.statusCode == 200 || res.statusCode == 201) {
         await fetchEmployees();
         await fetchDashboard();
-        return true;
+        return null;
       }
-      return false;
+      try {
+        final data = jsonDecode(res.body);
+        if (data is Map && data['detail'] != null) {
+          return data['detail'].toString();
+        }
+      } catch (_) {}
+      return 'Failed to add executive (HTTP ${res.statusCode})';
     } catch (e) {
       debugPrint('[AdminProvider] Error creating employee: $e');
-      return false;
+      return 'Network error: $e';
     }
   }
 
@@ -286,6 +292,50 @@ class AdminProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('[AdminProvider] Error deleting employee: $e');
       return false;
+    }
+  }
+
+  Future<EmployeeModel?> fetchEmployeeDetails(int employeeId) async {
+    try {
+      final res = await _apiClient.get('/api/v1/employees/$employeeId');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final emp = EmployeeModel.fromJson(data);
+        final index = _employees.indexWhere((e) => e.id == employeeId);
+        if (index != -1) {
+          if (!emp.isActive) {
+            _employees.removeAt(index);
+          } else {
+            _employees[index] = emp;
+          }
+        } else if (emp.isActive) {
+          _employees.add(emp);
+        }
+        notifyListeners();
+        return emp;
+      }
+    } catch (e) {
+      debugPrint('[AdminProvider] Error loading employee details: $e');
+    }
+    final matches = _employees.where((e) => e.id == employeeId);
+    if (matches.isNotEmpty) {
+      return matches.first;
+    }
+    return null;
+  }
+
+  Future<String?> updateEmployee(int employeeId, Map<String, dynamic> payload) async {
+    try {
+      final res = await _apiClient.put('/api/v1/employees/$employeeId', payload);
+      if (res.statusCode == 200) {
+        await fetchEmployees();
+        await fetchEmployeeDetails(employeeId);
+        return null;
+      }
+      return _extractErrorMessage(res);
+    } catch (e) {
+      debugPrint('[AdminProvider] Error updating employee: $e');
+      return 'Network error: $e';
     }
   }
 
@@ -320,6 +370,20 @@ class AdminProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('[AdminProvider] Error creating shop: $e');
       return false;
+    }
+  }
+
+  Future<String?> updateShop(int shopId, Map<String, dynamic> payload) async {
+    try {
+      final res = await _apiClient.put('/api/v1/shops/$shopId', payload);
+      if (res.statusCode == 200) {
+        await fetchShops();
+        return null;
+      }
+      return _extractErrorMessage(res);
+    } catch (e) {
+      debugPrint('[AdminProvider] Error updating shop: $e');
+      return 'Network error: $e';
     }
   }
 
@@ -359,22 +423,55 @@ class AdminProvider extends ChangeNotifier {
   }
 
   // 7. Visits
-  Future<void> fetchVisits() async {
+  String? _visitsError;
+  String? get visitsError => _visitsError;
+
+  Future<void> fetchVisits({int? executiveId}) async {
     _isLoadingVisits = true;
+    _visitsError = null;
     notifyListeners();
 
     try {
-      final res = await _apiClient.get('/api/v1/visits');
+      final endpoint = executiveId != null
+          ? '/api/v1/visits?executive_id=$executiveId'
+          : '/api/v1/visits';
+      final res = await _apiClient.get(endpoint);
       if (res.statusCode == 200) {
         final List data = jsonDecode(res.body);
-        _visits = data.map((item) => VisitModel.fromJson(item)).toList();
+        final fetched = data.map((item) => VisitModel.fromJson(item)).toList();
+        if (executiveId != null) {
+          _visits.removeWhere((v) => v.executiveId == executiveId);
+          _visits.addAll(fetched);
+        } else {
+          _visits = fetched;
+        }
+      } else {
+        _visitsError = 'Server returned status ${res.statusCode}';
       }
     } catch (e) {
       debugPrint('[AdminProvider] Error loading visits: $e');
+      _visitsError = 'Network error: $e';
     } finally {
       _isLoadingVisits = false;
       notifyListeners();
     }
+  }
+
+  List<VisitModel> getVisitsForEodReport(EODReportModel report) {
+    return _visits.where((v) {
+      if (v.executiveId != report.executiveId) return false;
+      final reportDate = report.reportDate.toLocal();
+      final sched = v.scheduledDate.toLocal();
+      final matchScheduled = sched.year == reportDate.year &&
+          sched.month == reportDate.month &&
+          sched.day == reportDate.day;
+      final visited = v.visitedAt?.toLocal();
+      final matchVisited = visited != null &&
+          visited.year == reportDate.year &&
+          visited.month == reportDate.month &&
+          visited.day == reportDate.day;
+      return matchScheduled || matchVisited;
+    }).toList();
   }
 
   // 8. Shipments
@@ -397,12 +494,18 @@ class AdminProvider extends ChangeNotifier {
   }
 
   // 9. EOD Reports
-  Future<void> fetchEodReports() async {
+  Future<void> fetchEodReports({DateTime? date}) async {
     _isLoadingEod = true;
     notifyListeners();
 
     try {
-      final res = await _apiClient.get('/api/v1/eod');
+      String endpoint = '/api/v1/eod';
+      if (date != null) {
+        final dateStr =
+            '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+        endpoint = '/api/v1/eod?date=$dateStr';
+      }
+      final res = await _apiClient.get(endpoint);
       if (res.statusCode == 200) {
         final List data = jsonDecode(res.body);
         _eodReports = data.map((item) => EODReportModel.fromJson(item)).toList();

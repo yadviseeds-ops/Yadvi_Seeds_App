@@ -191,8 +191,12 @@ export const UnifiedLogin: React.FC = () => {
 
         {/* Header */}
         <div className="text-center mb-6">
-          <div className="mx-auto w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
-            <ShieldCheck className="w-7 h-7 text-emerald-600" />
+          <div className="flex justify-center mb-3">
+            <img
+              src="/yhs_logo.png"
+              alt="YHS Company Logo"
+              className="h-16 w-auto object-contain"
+            />
           </div>
           <h1 className="text-2xl font-bold text-slate-800">Secure Login</h1>
           <p className="text-slate-500 text-sm mt-1">

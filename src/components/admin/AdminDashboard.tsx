@@ -123,7 +123,7 @@ export const AdminDashboard: React.FC = () => {
             <span className="text-2xl font-black text-slate-900">{shipments.length + 12}</span>
             <span className="text-[10px] text-purple-600 font-semibold">LR Dispatched</span>
           </div>
-          <div className="text-[10px] text-slate-400 mt-1 font-medium">In transit to dealers</div>
+          <div className="text-[10px] text-slate-400 mt-1 font-medium">In transit to shop owners</div>
         </div>
       </div>
 
@@ -448,7 +448,7 @@ export const AdminDashboard: React.FC = () => {
               <Package className="w-4 h-4 text-emerald-700" />
               <h2 className="font-bold text-slate-900 text-sm">Consignment Outstanding Summary</h2>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">Dealer indents, pending warehouse dispatches, and in-transit volume allocation</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Shop owner orders, pending warehouse dispatches, and in-transit volume allocation</p>
           </div>
           <button
             onClick={() => setActiveTab('shipments')}
@@ -464,7 +464,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80">
             <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Pending Warehouse Packing</span>
             <div className="text-xl font-black text-amber-900 mt-1">165 kg</div>
-            <span className="text-[10px] text-amber-700 font-medium">8 Dealer indents queued</span>
+            <span className="text-[10px] text-amber-700 font-medium">8 Shop owner orders queued</span>
           </div>
           <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200/80">
             <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800">In-Transit On Road</span>
@@ -483,12 +483,12 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Outstanding Dealer Indents List */}
+        {/* Outstanding Shop Owner Orders List */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                <th className="pb-2.5 pl-1">Dealer / Shop</th>
+                <th className="pb-2.5 pl-1">Shop Owner</th>
                 <th className="pb-2.5">Territory</th>
                 <th className="pb-2.5 text-center">Outstanding Volume</th>
                 <th className="pb-2.5">Associated Order</th>

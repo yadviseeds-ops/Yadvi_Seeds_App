@@ -40,6 +40,7 @@ class _RoleLoginScreenState extends State<RoleLoginScreen> {
       await _authService.requestOtp(
         _usernameController.text.trim(),
         _mobileController.text.trim(),
+        expectedRole: widget.roleValue,
       );
 
       if (mounted) {
@@ -76,7 +77,6 @@ class _RoleLoginScreenState extends State<RoleLoginScreen> {
   Widget build(BuildContext context) {
     final isFE = widget.roleValue == 'field_executive';
     final accentColor = isFE ? Colors.orange.shade800 : Colors.teal.shade700;
-    final iconData = isFE ? Icons.badge_outlined : Icons.storefront_outlined;
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundGrey,
@@ -97,17 +97,13 @@ class _RoleLoginScreenState extends State<RoleLoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Center(
-                      child: Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          color: accentColor.withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(iconData, size: 40, color: accentColor),
+                      child: Image.asset(
+                        'assets/images/yhs_logo.png',
+                        height: 240,
+                        fit: BoxFit.contain,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     Text(
                       widget.roleTitle,
                       textAlign: TextAlign.center,
@@ -123,7 +119,7 @@ class _RoleLoginScreenState extends State<RoleLoginScreen> {
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 20),
 
                     TextFormField(
                       controller: _usernameController,

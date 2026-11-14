@@ -1,6 +1,39 @@
+class AssignedShopModel {
+  final int id;
+  final String shopName;
+  final String marketLocation;
+  final String address;
+  final String status;
+  final String? phone;
+  final String? ownerName;
+
+  AssignedShopModel({
+    required this.id,
+    required this.shopName,
+    required this.marketLocation,
+    required this.address,
+    required this.status,
+    this.phone,
+    this.ownerName,
+  });
+
+  factory AssignedShopModel.fromJson(Map<String, dynamic> json) {
+    return AssignedShopModel(
+      id: json['id'] ?? 0,
+      shopName: json['shop_name']?.toString() ?? '',
+      marketLocation: json['market_location']?.toString() ?? '',
+      address: json['address']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'Active',
+      phone: json['phone']?.toString(),
+      ownerName: json['owner_name']?.toString(),
+    );
+  }
+}
+
 class EmployeeModel {
   final int id;
   final int userId;
+  final String username;
   final String employeeCode;
   final String designation;
   final String assignedTerritory;
@@ -14,10 +47,15 @@ class EmployeeModel {
   final String phone;
   final String? email;
   final bool isActive;
+  final List<AssignedShopModel> assignedShops;
+  final int totalAssignedShops;
+  final int completedVisits;
+  final int pendingVisits;
 
   EmployeeModel({
     required this.id,
     required this.userId,
+    this.username = '',
     required this.employeeCode,
     required this.designation,
     required this.assignedTerritory,
@@ -31,6 +69,10 @@ class EmployeeModel {
     required this.phone,
     this.email,
     required this.isActive,
+    this.assignedShops = const [],
+    this.totalAssignedShops = 0,
+    this.completedVisits = 0,
+    this.pendingVisits = 0,
   });
 
   factory EmployeeModel.fromJson(Map<String, dynamic> json) {
@@ -41,11 +83,17 @@ class EmployeeModel {
       } catch (_) {}
     }
 
+    final shopsRaw = json['assigned_shops'] as List?;
+    final shops = shopsRaw != null
+        ? shopsRaw.map((s) => AssignedShopModel.fromJson(Map<String, dynamic>.from(s as Map))).toList()
+        : <AssignedShopModel>[];
+
     return EmployeeModel(
       id: json['id'] ?? 0,
       userId: json['user_id'] ?? 0,
+      username: json['username']?.toString() ?? '',
       employeeCode: json['employee_code']?.toString() ?? '',
-      designation: json['designation']?.toString() ?? 'Field Sales Officer',
+      designation: (json['designation'] == null || json['designation'] == '' || json['designation'] == 'Field Sales Officer') ? 'Field Executive' : json['designation'].toString(),
       assignedTerritory: json['assigned_territory']?.toString() ?? '',
       currentLat: (json['current_lat'] as num?)?.toDouble(),
       currentLng: (json['current_lng'] as num?)?.toDouble(),
@@ -57,12 +105,17 @@ class EmployeeModel {
       phone: json['phone']?.toString() ?? '',
       email: json['email']?.toString(),
       isActive: json['is_active'] ?? true,
+      assignedShops: shops,
+      totalAssignedShops: json['total_assigned_shops'] ?? shops.length,
+      completedVisits: json['completed_visits'] ?? 0,
+      pendingVisits: json['pending_visits'] ?? 0,
     );
   }
 
   EmployeeModel copyWith({
     int? id,
     int? userId,
+    String? username,
     String? employeeCode,
     String? designation,
     String? assignedTerritory,
@@ -76,10 +129,15 @@ class EmployeeModel {
     String? phone,
     String? email,
     bool? isActive,
+    List<AssignedShopModel>? assignedShops,
+    int? totalAssignedShops,
+    int? completedVisits,
+    int? pendingVisits,
   }) {
     return EmployeeModel(
       id: id ?? this.id,
       userId: userId ?? this.userId,
+      username: username ?? this.username,
       employeeCode: employeeCode ?? this.employeeCode,
       designation: designation ?? this.designation,
       assignedTerritory: assignedTerritory ?? this.assignedTerritory,
@@ -93,6 +151,10 @@ class EmployeeModel {
       phone: phone ?? this.phone,
       email: email ?? this.email,
       isActive: isActive ?? this.isActive,
+      assignedShops: assignedShops ?? this.assignedShops,
+      totalAssignedShops: totalAssignedShops ?? this.totalAssignedShops,
+      completedVisits: completedVisits ?? this.completedVisits,
+      pendingVisits: pendingVisits ?? this.pendingVisits,
     );
   }
 }

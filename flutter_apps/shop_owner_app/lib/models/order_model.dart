@@ -7,6 +7,7 @@ class OrderModel {
   final String contactPhone;
   final String deliveryAddress;
   final int totalQuantityBags;
+  int get totalQuantityKg => totalQuantityBags;
   final String status;
   final String? assignedExecutiveName;
   final String? lrNumber;

@@ -21,6 +21,9 @@ class LocationUpdateRequest(BaseModel):
     speed: Optional[float] = None
 
 @router.post("/location")
+@router.post("/location/", include_in_schema=False)
+@router.post("/live-location", include_in_schema=False)
+@router.post("/live-location/", include_in_schema=False)
 async def update_location(
     payload: LocationUpdateRequest,
     db: Session = Depends(get_db),

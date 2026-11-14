@@ -58,7 +58,7 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> with SingleTick
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Set the FastAPI backend URL (e.g. http://10.0.2.2:8000 for Android emulator or your LAN IP):',
+              'Set backend URL (e.g. http://10.0.2.2:8080 for emulator proxy, or Cloud Run):',
               style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
             ),
             const SizedBox(height: 12),
@@ -66,7 +66,7 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> with SingleTick
               controller: serverController,
               decoration: const InputDecoration(
                 labelText: 'Base URL',
-                hintText: 'http://10.0.2.2:8000',
+                hintText: 'http://10.0.2.2:8080',
               ),
             ),
           ],
@@ -217,20 +217,12 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> with SingleTick
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Brand Header
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryGreen.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.admin_panel_settings_rounded,
-                      size: 42,
-                      color: AppTheme.primaryGreen,
-                    ),
+                  Image.asset(
+                    'assets/images/yhs_logo.png',
+                    height: 240,
+                    fit: BoxFit.contain,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   const Text(
                     'YADVI SEEDS',
                     style: TextStyle(
@@ -249,7 +241,7 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> with SingleTick
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
                   // Tab selector (OTP vs Password)
                   Container(
@@ -312,6 +304,29 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> with SingleTick
                                   return null;
                                 },
                               ),
+                              if (!_isOtpSent) ...[
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    const Text('Authorized: ', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                                    ActionChip(
+                                      label: const Text('9529403798', style: TextStyle(fontSize: 11)),
+                                      padding: EdgeInsets.zero,
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () => setState(() => _mobileController.text = '9529403798'),
+                                    ),
+                                    ActionChip(
+                                      label: const Text('8080259924', style: TextStyle(fontSize: 11)),
+                                      padding: EdgeInsets.zero,
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () => setState(() => _mobileController.text = '8080259924'),
+                                    ),
+                                  ],
+                                ),
+                              ],
                               const SizedBox(height: 14),
 
                               if (_isOtpSent) ...[
@@ -327,17 +342,8 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> with SingleTick
                                 ),
                                 const SizedBox(height: 14),
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
-                                    TextButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _isOtpSent = false;
-                                          _otpController.clear();
-                                        });
-                                      },
-                                      child: const Text('Change Mobile'),
-                                    ),
                                     TextButton(
                                       onPressed: authProvider.isLoading ? null : _handleRequestOtp,
                                       child: const Text('Resend Code'),
@@ -419,13 +425,6 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> with SingleTick
                         ),
                       ],
                     ),
-                  ),
-
-                  const SizedBox(height: 16),
-                  Text(
-                    'Connected API: ${AppConfig.apiBaseUrl}',
-                    style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
-                    textAlign: TextAlign.center,
                   ),
                 ],
               ),

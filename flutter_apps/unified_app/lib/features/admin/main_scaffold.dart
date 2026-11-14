@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/exit_dialog.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../auth/unified_role_selection_screen.dart';
@@ -10,6 +11,7 @@ import 'dashboard/dashboard_screen.dart';
 import 'employees/employees_screen.dart';
 import 'orders/orders_screen.dart';
 import 'products/products_screen.dart';
+import 'profile/admin_profile_screen.dart';
 import 'reports/eod_reports_screen.dart';
 import 'shops/shops_screen.dart';
 import 'shipments/shipments_screen.dart';
@@ -25,6 +27,8 @@ class AdminMainScaffold extends StatefulWidget {
 
 class _AdminMainScaffoldState extends State<AdminMainScaffold> {
   int _currentIndex = 0;
+  final List<int> _tabHistory = [0];
+  String? _selectedOrderFilter;
 
   @override
   void initState() {
@@ -34,63 +38,38 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
     });
   }
 
-  void _onNavigateTab(int index) {
+  void _onNavigateTab(int index, {String? orderFilter}) {
     setState(() {
+      _selectedOrderFilter = orderFilter;
       _currentIndex = index;
+      if (_tabHistory.isEmpty || _tabHistory.last != index) {
+        _tabHistory.add(index);
+      }
     });
   }
 
-  void _showServerSettingsDialog() {
-    final serverController = TextEditingController(text: AppConfig.apiBaseUrl);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Backend Server Configuration', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Active backend base URL:',
-              style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: serverController,
-              decoration: const InputDecoration(
-                labelText: 'Base URL',
-                hintText: 'http://10.0.2.2:8000',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              final adminProvider = Provider.of<AdminProvider>(context, listen: false);
-              await AppConfig.resetBaseUrl();
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
-                adminProvider.refreshAll();
-              }
-            },
-            child: const Text('Reset Default'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final adminProvider = Provider.of<AdminProvider>(context, listen: false);
-              if (serverController.text.trim().isNotEmpty) {
-                await AppConfig.setCustomBaseUrl(serverController.text.trim());
-              }
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
-                adminProvider.refreshAll();
-              }
-            },
-            child: const Text('Save & Reconnect'),
-          ),
-        ],
-      ),
+  Future<void> _handleBack() async {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
+    if (_tabHistory.length > 1) {
+      setState(() {
+        _tabHistory.removeLast();
+        _currentIndex = _tabHistory.last;
+      });
+    } else {
+      final exit = await showExitConfirmationDialog(context);
+      if (exit) {
+        SystemNavigator.pop();
+      }
+    }
+  }
+
+  void _navigateToProfile() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AdminProfileScreen()),
     );
   }
 
@@ -129,7 +108,10 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
 
     final List<Widget> screens = [
       DashboardScreen(onNavigateTab: _onNavigateTab),
-      const OrdersScreen(),
+      OrdersScreen(
+        key: ValueKey(_selectedOrderFilter),
+        initialStatus: _selectedOrderFilter,
+      ),
       const ProductsScreen(),
       const EmployeesScreen(),
       const ShopsScreen(),
@@ -140,12 +122,36 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
       'Manage Orders',
       'Products & Seeds',
       'Field Force',
-      'Dealer Network',
+      'Shop Owner Network',
     ];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(titles[_currentIndex]),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _handleBack();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leadingWidth: 96,
+          leading: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: _tabHistory.length > 1 ? 'Back to Previous Tab' : 'Exit Application',
+                onPressed: _handleBack,
+              ),
+              Builder(
+                builder: (ctx) => IconButton(
+                  icon: const Icon(Icons.menu),
+                  tooltip: 'Open Navigation Drawer',
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                ),
+              ),
+            ],
+          ),
+          title: Text(titles[_currentIndex]),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -154,8 +160,8 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Server Settings',
-            onPressed: _showServerSettingsDialog,
+            tooltip: 'Admin Settings & Profile',
+            onPressed: _navigateToProfile,
           ),
         ],
       ),
@@ -171,12 +177,6 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  const CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.admin_panel_settings, size: 36, color: AppTheme.primaryGreen),
-                  ),
-                  const SizedBox(height: 10),
                   Text(
                     auth.currentUser ?? 'Administrator',
                     style: const TextStyle(
@@ -185,6 +185,7 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   const Text(
                     'Role: System Administrator',
                     style: TextStyle(color: Colors.white70, fontSize: 12),
@@ -221,7 +222,7 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
             ),
             ListTile(
               leading: const Icon(Icons.people_alt_outlined, color: AppTheme.primaryGreen),
-              title: const Text('Field Sales Officers'),
+              title: const Text('Field Executives'),
               selected: _currentIndex == 3,
               onTap: () {
                 Navigator.pop(context);
@@ -230,7 +231,7 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
             ),
             ListTile(
               leading: const Icon(Icons.storefront_outlined, color: AppTheme.primaryGreen),
-              title: const Text('Dealer Network'),
+              title: const Text('Shop Owner Network'),
               selected: _currentIndex == 4,
               onTap: () {
                 Navigator.pop(context);
@@ -287,6 +288,14 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
             ),
             const Divider(),
             ListTile(
+              leading: const Icon(Icons.settings_outlined, color: AppTheme.primaryGreen),
+              title: const Text('Profile & Settings'),
+              onTap: () {
+                Navigator.pop(context);
+                _navigateToProfile();
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.logout, color: Colors.redAccent),
               title: const Text('Logout Session', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
               onTap: () {
@@ -326,10 +335,11 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
           NavigationDestination(
             icon: Icon(Icons.storefront_outlined),
             selectedIcon: Icon(Icons.storefront, color: AppTheme.primaryGreen),
-            label: 'Dealers',
+            label: 'Shop Owners',
           ),
         ],
       ),
+    ),
     );
   }
 }

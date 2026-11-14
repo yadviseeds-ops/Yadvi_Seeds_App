@@ -33,6 +33,8 @@ class DashboardDataModel {
   final int presentToday;
   final int totalVisitsToday;
   final int completedVisitsToday;
+  final int totalEodReports;
+  final int eodReportsToday;
 
   DashboardDataModel({
     required this.kpis,
@@ -46,6 +48,8 @@ class DashboardDataModel {
     required this.presentToday,
     required this.totalVisitsToday,
     required this.completedVisitsToday,
+    this.totalEodReports = 0,
+    this.eodReportsToday = 0,
   });
 
   factory DashboardDataModel.fromJson(Map<String, dynamic> json) {
@@ -68,6 +72,8 @@ class DashboardDataModel {
       presentToday: json['present_today'] ?? 0,
       totalVisitsToday: json['total_visits_today'] ?? 0,
       completedVisitsToday: json['completed_visits_today'] ?? 0,
+      totalEodReports: json['total_eod_reports'] ?? 0,
+      eodReportsToday: json['eod_reports_today'] ?? 0,
     );
   }
 }

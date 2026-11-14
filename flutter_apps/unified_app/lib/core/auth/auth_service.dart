@@ -5,6 +5,22 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../network/api_client.dart';
 import '../storage/local_storage.dart';
 
+/// Represents the state of a phone-change verification request.
+/// Distinguishes automatic verification (autoVerifiedToken) from manual verification (verificationId).
+class PhoneChangeVerificationSession {
+  final String? verificationId;
+  final String? autoVerifiedToken;
+  final int? resendToken;
+
+  const PhoneChangeVerificationSession({
+    this.verificationId,
+    this.autoVerifiedToken,
+    this.resendToken,
+  });
+
+  bool get isAutoVerified => autoVerifiedToken != null && autoVerifiedToken!.isNotEmpty;
+}
+
 class AuthService {
   FirebaseAuth get _auth => FirebaseAuth.instance;
   final ApiClient _apiClient = ApiClient();
@@ -18,41 +34,48 @@ class AuthService {
   /// Formats Firebase and network authentication errors into clear, actionable UI messages
   static String formatAuthError(dynamic error) {
     if (error is FirebaseAuthException) {
-      switch (error.code) {
+      final code = error.code;
+      final msg = error.message ?? 'No details provided';
+      switch (code) {
         case 'network-request-failed':
-          return 'Network error: Unable to connect to Firebase. Check internet connectivity, DNS, and Google Play Services.';
+          return '[$code] Network error: Unable to connect to Firebase ($msg). Check internet connectivity, DNS, and Google Play Services.';
         case 'invalid-phone-number':
-          return 'Invalid phone number: Please check the entered 10-digit number.';
+          return '[$code] Invalid phone number ($msg). Please check the entered 10-digit number.';
         case 'too-many-requests':
-          return 'Too many requests: SMS quota reached or device blocked temporarily. Please try again later.';
+          return '[$code] Too many requests ($msg). SMS quota reached or device blocked temporarily.';
         case 'quota-exceeded':
-          return 'Daily SMS quota exceeded in Firebase project. Please try again tomorrow or contact admin.';
+          return '[$code] Daily SMS quota exceeded ($msg).';
         case 'app-not-authorized':
-          return 'App not authorized: App SHA-1 fingerprint or package name is not registered in Firebase Console.';
+          return '[$code] App not authorized ($msg). Check SHA-1/SHA-256 fingerprints in Firebase Console.';
         case 'invalid-verification-code':
-          return 'Invalid verification code. Please check the OTP and try again.';
+          return '[$code] Invalid verification code ($msg).';
         case 'session-expired':
-          return 'Verification session expired. Please request a new OTP.';
+          return '[$code] Verification session expired ($msg).';
         default:
-          return '[${error.code}] ${error.message ?? 'Authentication failed.'}';
+          return '[$code] $msg';
       }
     }
     return error.toString().replaceFirst('Exception: ', '');
   }
 
+
   /// Phase 1 of Phone Login: Verify credentials with FastAPI, then trigger Firebase Phone Auth
-  Future<String> requestOtp(String username, String mobile) async {
+  Future<String> requestOtp(String username, String mobile, {String? expectedRole}) async {
     if (_isRequestingOtp) {
       throw Exception('An OTP request is already in progress. Please wait.');
     }
     _isRequestingOtp = true;
 
     try {
-      // 1. Validate user and active status with backend
-      final verifyResponse = await _apiClient.post('/api/v1/auth/verify-user', {
+      // 1. Validate user, active status, and expected role with backend
+      final verifyPayload = <String, dynamic>{
         'username': username.trim(),
         'mobile': mobile.trim(),
-      });
+      };
+      if (expectedRole != null && expectedRole.isNotEmpty) {
+        verifyPayload['expected_role'] = expectedRole;
+      }
+      final verifyResponse = await _apiClient.post('/api/v1/auth/verify-user', verifyPayload);
 
       if (verifyResponse.statusCode != 200) {
         String err = 'Invalid username or registered mobile number.';
@@ -219,6 +242,119 @@ class AuthService {
       } catch (_) {}
       throw Exception(err);
     }
+  }
+
+  /// Fetch current authenticated user's profile
+  Future<Map<String, dynamic>> getProfile() async {
+    final response = await _apiClient.get('/api/v1/auth/me');
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      String err = 'Failed to load profile (${response.statusCode}).';
+      try {
+        final data = jsonDecode(response.body);
+        if (data['detail'] != null) err = data['detail'].toString();
+      } catch (_) {}
+      throw Exception(err);
+    }
+  }
+
+  /// Update administrator profile details
+  Future<Map<String, dynamic>> updateProfile({
+    String? fullName,
+    String? username,
+    String? email,
+    String? newPhone,
+    String? firebaseIdToken,
+  }) async {
+    final payload = <String, dynamic>{};
+    if (fullName != null) payload['full_name'] = fullName.trim();
+    if (username != null) payload['username'] = username.trim();
+    if (email != null) payload['email'] = email.trim();
+    if (newPhone != null) payload['new_phone'] = newPhone.trim();
+    if (firebaseIdToken != null) payload['firebase_id_token'] = firebaseIdToken;
+
+    final response = await _apiClient.put('/api/v1/auth/me', payload);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['full_name'] != null) {
+        final userId = data['id'] ?? 0;
+        await LocalStorage.saveUserData(
+          userId: userId,
+          fullName: data['full_name'],
+        );
+      }
+      return data;
+    } else {
+      String err = 'Failed to update profile (${response.statusCode}).';
+      try {
+        final data = jsonDecode(response.body);
+        if (data['detail'] != null) err = data['detail'].toString();
+      } catch (_) {}
+      throw Exception(err);
+    }
+  }
+
+  /// Triggers Firebase Phone Auth to send OTP for changing phone number.
+  /// Returns a PhoneChangeVerificationSession which clearly distinguishes between
+  /// automatic verification (instant token) and manual SMS verification (verificationId).
+  Future<PhoneChangeVerificationSession> requestPhoneChangeOtp(String newMobile) async {
+    final completer = Completer<PhoneChangeVerificationSession>();
+    try {
+      await _auth.verifyPhoneNumber(
+        phoneNumber: '+91${newMobile.trim()}',
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          debugPrint('[AuthService] Firebase auto-verification completed for phone change.');
+          try {
+            final userCred = await _auth.signInWithCredential(credential);
+            final token = await userCred.user?.getIdToken();
+            if (token != null && !completer.isCompleted) {
+              completer.complete(PhoneChangeVerificationSession(autoVerifiedToken: token));
+            }
+          } catch (e, st) {
+            debugPrint('[AuthService] Auto-verification sign-in failed: $e\n$st');
+            if (!completer.isCompleted) completer.completeError(e);
+          }
+        },
+        verificationFailed: (FirebaseAuthException e) {
+          debugPrint('[AuthService] Firebase phone change verificationFailed: code=${e.code}, msg=${e.message}');
+          if (!completer.isCompleted) {
+            completer.completeError(e);
+          }
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          debugPrint('[AuthService] Firebase phone change codeSent: verificationId=$verificationId');
+          if (!completer.isCompleted) {
+            completer.complete(PhoneChangeVerificationSession(
+              verificationId: verificationId,
+              resendToken: resendToken,
+            ));
+          }
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {
+          debugPrint('[AuthService] Firebase phone change codeAutoRetrievalTimeout: $verificationId');
+        },
+      );
+    } catch (e) {
+      if (!completer.isCompleted) {
+        completer.completeError(e);
+      }
+    }
+    return completer.future;
+  }
+
+  /// Verifies OTP for phone change and returns the Firebase ID token
+  Future<String> verifyPhoneChangeOtp(String verificationId, String smsCode) async {
+    final credential = PhoneAuthProvider.credential(
+      verificationId: verificationId,
+      smsCode: smsCode.trim(),
+    );
+    final userCredential = await _auth.signInWithCredential(credential);
+    final token = await userCredential.user?.getIdToken();
+    if (token == null) {
+      throw Exception('Failed to obtain verified Firebase token for phone change.');
+    }
+    return token;
   }
 
   /// Check active user session

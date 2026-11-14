@@ -4,14 +4,17 @@ import '../../../models/visit_model.dart';
 import 'visit_details_screen.dart';
 
 class VisitsScreen extends StatefulWidget {
-  const VisitsScreen({super.key});
+  final FeService? feService;
+  final VoidCallback? onBack;
+
+  const VisitsScreen({super.key, this.feService, this.onBack});
 
   @override
-  State<VisitsScreen> createState() => _VisitsScreenState();
+  State<VisitsScreen> createState() => VisitsScreenState();
 }
 
-class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderStateMixin {
-  final _feService = FeService();
+class VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderStateMixin {
+  late final FeService _feService;
   List<VisitModel> _visits = [];
   bool _isLoading = true;
   String? _error;
@@ -20,8 +23,9 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
+    _feService = widget.feService ?? FeService();
     _tabController = TabController(length: 2, vsync: this);
-    _loadVisits();
+    loadVisits();
   }
 
   @override
@@ -30,15 +34,17 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
     super.dispose();
   }
 
-  Future<void> _loadVisits() async {
+  Future<void> loadVisits() async {
     try {
       final visits = await _feService.getVisits();
+      if (!mounted) return;
       setState(() {
         _visits = visits;
         _isLoading = false;
         _error = null;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');
         _isLoading = false;
@@ -57,6 +63,17 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F0),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: 'Back',
+          onPressed: () {
+            if (widget.onBack != null) {
+              widget.onBack!();
+            } else if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
         title: const Text('Visits', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: const Color(0xFF0D4A32),
         bottom: TabBar(
@@ -80,11 +97,11 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
                     const SizedBox(height: 12),
                     Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
                     const SizedBox(height: 12),
-                    ElevatedButton(onPressed: () { setState(() { _isLoading = true; _error = null; }); _loadVisits(); }, child: const Text('Retry')),
+                      ElevatedButton(onPressed: () { setState(() { _isLoading = true; _error = null; }); loadVisits(); }, child: const Text('Retry')),
                   ],
                 ))
               : RefreshIndicator(
-                  onRefresh: _loadVisits,
+                  onRefresh: loadVisits,
                   child: TabBarView(
                     controller: _tabController,
                     children: [
@@ -137,7 +154,16 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
               children: [
                 const Icon(Icons.store, color: Color(0xFF0D4A32), size: 20),
                 const SizedBox(width: 8),
-                Expanded(child: Text(v.shopName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0D4A32)))),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(v.shopName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0D4A32))),
+                      const SizedBox(height: 2),
+                      Text('Shop ID: #${v.shopId}', style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
@@ -152,7 +178,7 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildInfoRow(Icons.location_on, v.shopLocation),
-                _buildInfoRow(Icons.calendar_today, v.scheduledDate.toLocal().toString().substring(0, 16)),
+                _buildInfoRow(Icons.calendar_today, 'Scheduled: ${v.scheduledDate.toLocal().toString().substring(0, 16)}'),
                 if (v.visitedAt != null) _buildInfoRow(Icons.check_circle, 'Visited at: ${v.visitedAt!.toLocal().toString().substring(11, 16)}'),
                 if (v.photoUrl != null) _buildInfoRow(Icons.image, 'Photo Uploaded'),
                 if (v.notes != null && v.notes!.isNotEmpty) _buildInfoRow(Icons.notes, v.notes!),
@@ -172,7 +198,7 @@ class _VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSt
                               );
                               if (result == true) {
                                 setState(() => _isLoading = true);
-                                _loadVisits();
+                                loadVisits();
                               }
                             },
                             style: ElevatedButton.styleFrom(

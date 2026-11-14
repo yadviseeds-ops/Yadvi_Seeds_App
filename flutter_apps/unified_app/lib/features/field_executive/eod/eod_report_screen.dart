@@ -5,14 +5,17 @@ import '../../../models/visit_model.dart';
 import '../../../models/order_model.dart';
 
 class EodReportScreen extends StatefulWidget {
-  const EodReportScreen({super.key});
+  final FeService? feService;
+  final VoidCallback? onBack;
+
+  const EodReportScreen({super.key, this.feService, this.onBack});
 
   @override
-  State<EodReportScreen> createState() => _EodReportScreenState();
+  State<EodReportScreen> createState() => EodReportScreenState();
 }
 
-class _EodReportScreenState extends State<EodReportScreen> {
-  final _feService = FeService();
+class EodReportScreenState extends State<EodReportScreen> {
+  late final FeService _feService;
   final _notesController = TextEditingController();
   FeProfile? _profile;
   List<VisitModel> _todayVisits = [];
@@ -25,7 +28,8 @@ class _EodReportScreenState extends State<EodReportScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _feService = widget.feService ?? FeService();
+    loadData();
   }
 
   @override
@@ -34,7 +38,7 @@ class _EodReportScreenState extends State<EodReportScreen> {
     super.dispose();
   }
 
-  Future<void> _loadData() async {
+  Future<void> loadData() async {
     try {
       final results = await Future.wait([
         _feService.getMyProfile(),
@@ -42,6 +46,7 @@ class _EodReportScreenState extends State<EodReportScreen> {
         _feService.getMyOrders(),
       ]);
       final allVisits = results[1] as List<VisitModel>;
+      if (!mounted) return;
       setState(() {
         _profile = results[0] as FeProfile;
         _todayVisits = allVisits.where((v) => v.isToday).toList();
@@ -49,6 +54,7 @@ class _EodReportScreenState extends State<EodReportScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');
         _isLoading = false;
@@ -57,21 +63,54 @@ class _EodReportScreenState extends State<EodReportScreen> {
   }
 
   Future<void> _submitEod() async {
-    // EOD uses existing visit/order data — no separate endpoint needed
     setState(() => _isSubmitting = true);
-    await Future.delayed(const Duration(seconds: 1)); // simulate submission
 
-    // STOP DAILY GPS as requested by the workflow
-    _feService.stopDailyGps();
+    try {
+      // Always fetch fresh authoritative visits right before submission
+      final freshVisits = await _feService.getVisits();
+      final freshToday = freshVisits.where((v) => v.isToday).toList();
+      if (mounted) {
+        setState(() {
+          _todayVisits = freshToday;
+        });
+      }
 
-    setState(() {
-      _isSubmitting = false;
-      _submitted = true;
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('EOD Report submitted successfully! Daily GPS stopped.'), backgroundColor: Colors.green),
+      final completed = freshToday.where((v) => v.status == 'Visited').length;
+      final pending = freshToday.where((v) => v.status == 'Pending').length;
+      final totalBags = freshToday.fold(0, (sum, v) => sum + v.bagsOrdered);
+
+      await _feService.submitEodReport(
+        completedVisits: completed,
+        pendingVisits: pending,
+        totalBagsOrdered: totalBags,
+        notes: _notesController.text.trim(),
       );
+
+      // STOP DAILY GPS as requested by the workflow
+      _feService.stopDailyGps();
+
+      setState(() {
+        _isSubmitting = false;
+        _submitted = true;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('EOD Report submitted successfully! Daily GPS stopped.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Submission failed: ${e.toString().replaceAll("Exception: ", "")}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -84,6 +123,17 @@ class _EodReportScreenState extends State<EodReportScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F0),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: 'Back',
+          onPressed: () {
+            if (widget.onBack != null) {
+              widget.onBack!();
+            } else if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
         title: const Text('EOD Report', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: const Color(0xFF0D4A32),
       ),
@@ -162,7 +212,7 @@ class _EodReportScreenState extends State<EodReportScreen> {
                                 Expanded(child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(v.shopName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    Text('${v.shopName} (Shop #${v.shopId})', style: const TextStyle(fontWeight: FontWeight.bold)),
                                     Text(v.shopLocation, style: const TextStyle(color: Colors.grey, fontSize: 11)),
                                   ],
                                 )),
