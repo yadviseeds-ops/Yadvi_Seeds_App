@@ -456,6 +456,24 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
+  Future<String?> updateShopFinancials(int shopId, {double? debtTaken, double? debtRepaid}) async {
+    try {
+      final payload = <String, dynamic>{};
+      if (debtTaken != null) payload['debt_taken'] = debtTaken;
+      if (debtRepaid != null) payload['debt_repaid'] = debtRepaid;
+
+      final res = await _apiClient.put('/api/v1/shops/$shopId/financials', payload);
+      if (res.statusCode == 200) {
+        await fetchShops();
+        return null;
+      }
+      return _extractErrorMessage(res);
+    } catch (e) {
+      debugPrint('[AdminProvider] Error updating shop financials: $e');
+      return 'Network error: $e';
+    }
+  }
+
   Future<String?> deleteShop(int shopId) async {
     try {
       final res = await _apiClient.delete('/api/v1/shops/$shopId');

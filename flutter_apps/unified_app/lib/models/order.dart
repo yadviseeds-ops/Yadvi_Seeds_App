@@ -47,6 +47,8 @@ class Order {
   final String shopName;
   final String shopLocation;
   final String deliveryAddress;
+  final String? ownerName;
+  final String? contactPhone;
   final double totalQuantityKg;
   final int totalItemsCount;
   final int totalQuantityBags;
@@ -63,6 +65,8 @@ class Order {
     required this.shopName,
     required this.shopLocation,
     required this.deliveryAddress,
+    this.ownerName,
+    this.contactPhone,
     required this.totalQuantityKg,
     this.totalItemsCount = 0,
     this.totalQuantityBags = 0,
@@ -92,6 +96,8 @@ class Order {
       shopName: json['shop_name'] ?? '',
       shopLocation: json['shop_location'] ?? '',
       deliveryAddress: json['delivery_address'] ?? '',
+      ownerName: json['owner_name'],
+      contactPhone: json['contact_phone'],
       totalQuantityKg: totalKg,
       totalItemsCount: json['total_items_count'] ?? itemsList.length,
       totalQuantityBags: bags,

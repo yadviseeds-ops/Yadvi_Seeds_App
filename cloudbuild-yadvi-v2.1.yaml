@@ -10,3 +10,4 @@ steps:
 images:
   - asia-south1-docker.pkg.dev/yadvi-seed-app-5f306/yadvi-backend/yadvi-api:v2.1-so-login-photo-fix-20261114
 timeout: 1200s
+

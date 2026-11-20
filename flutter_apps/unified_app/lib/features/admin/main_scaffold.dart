@@ -9,6 +9,7 @@ import '../auth/unified_role_selection_screen.dart';
 import 'attendance/attendance_screen.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'employees/employees_screen.dart';
+import 'invoices/admin_invoices_screen.dart';
 import 'orders/orders_screen.dart';
 import 'products/products_screen.dart';
 import 'profile/admin_profile_screen.dart';
@@ -122,7 +123,7 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
       'Manage Orders',
       'Products & Seeds',
       'Field Force',
-      'Shop Owner Network',
+      'Dealer Network',
     ];
 
     return PopScope(
@@ -166,7 +167,10 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
         ],
       ),
       drawer: Drawer(
-        child: ListView(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
@@ -231,7 +235,7 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
             ),
             ListTile(
               leading: const Icon(Icons.storefront_outlined, color: AppTheme.primaryGreen),
-              title: const Text('Shop Owner Network'),
+              title: const Text('Dealer Network'),
               selected: _currentIndex == 4,
               onTap: () {
                 Navigator.pop(context);
@@ -271,6 +275,14 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.receipt_long_outlined, color: Colors.indigo),
+              title: const Text('Invoices & Receipts'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminInvoicesScreen()));
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.assignment_outlined, color: Colors.teal),
               title: const Text('Daily EOD Reports'),
               onTap: () {
@@ -286,22 +298,39 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const LiveTrackingScreen()));
               },
             ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.settings_outlined, color: AppTheme.primaryGreen),
-              title: const Text('Profile & Settings'),
-              onTap: () {
-                Navigator.pop(context);
-                _navigateToProfile();
-              },
+          ],
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.redAccent),
-              title: const Text('Logout Session', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
-              onTap: () {
-                Navigator.pop(context);
-                _confirmLogout();
-              },
+            const Divider(height: 1),
+            SafeArea(
+              top: false,
+              left: false,
+              right: false,
+              bottom: true,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 6.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.settings_outlined, color: AppTheme.primaryGreen),
+                      title: const Text('Profile & Settings'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _navigateToProfile();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.redAccent),
+                      title: const Text('Logout Session', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _confirmLogout();
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),

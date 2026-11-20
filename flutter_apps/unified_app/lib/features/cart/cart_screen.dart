@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:unified_app/features/cart/cart_provider.dart';
 import 'package:unified_app/services/shop_service.dart';
+import 'package:unified_app/services/receipt_pdf_service.dart';
 import 'package:unified_app/core/widgets/product_image.dart';
 
 class CartScreen extends StatefulWidget {
@@ -222,7 +223,7 @@ class _CartScreenState extends State<CartScreen> {
                                         style: TextStyle(fontSize: 11, color: Colors.grey),
                                       ),
                                       Text(
-                                        '\ kg',
+                                        '${item.quantityKg.toStringAsFixed(item.quantityKg.truncateToDouble() == item.quantityKg ? 1 : 2)} kg',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 15,
@@ -313,25 +314,121 @@ class _CartScreenState extends State<CartScreen> {
                                               'unit': i.unit,
                                             })
                                         .toList();
-                                    await ShopService().placeOrder(items, _notesController.text.trim());
+                                    final placedOrder = await ShopService().placeOrder(items, _notesController.text.trim());
                                     cart.clearCart();
                                     if (context.mounted) {
                                       showDialog(
                                         context: context,
-                                        builder: (_) => AlertDialog(
-                                          title: const Text('Order Placed Successfully'),
-                                          content: Text(
-                                            'Your order for ${totalKg.toStringAsFixed(2)} kg ($itemsCount varieties) has been recorded.',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () {
-                                                Navigator.pop(context);
-                                              },
-                                              child: const Text('OK'),
+                                        barrierDismissible: false,
+                                        builder: (dialogCtx) {
+                                          bool isDownloading = false;
+                                          return StatefulBuilder(
+                                            builder: (context, setDialogState) => AlertDialog(
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                              title: Row(
+                                                children: [
+                                                  Icon(Icons.check_circle, color: Colors.green[700], size: 28),
+                                                  const SizedBox(width: 8),
+                                                  const Expanded(
+                                                    child: Text(
+                                                      'Order Placed Successfully',
+                                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              content: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Your order (${placedOrder.orderNumber}) for ${totalKg.toStringAsFixed(2)} kg ($itemsCount varieties) has been recorded.',
+                                                    style: const TextStyle(fontSize: 14),
+                                                  ),
+                                                  const SizedBox(height: 14),
+                                                  Container(
+                                                    width: double.infinity,
+                                                    padding: const EdgeInsets.all(10),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.green.shade50,
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      border: Border.all(color: Colors.green.shade200),
+                                                    ),
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          'Invoice No: ${ReceiptPdfService.generateInvoiceNumber(placedOrder)}',
+                                                          style: TextStyle(
+                                                            fontWeight: FontWeight.bold,
+                                                            color: Colors.green.shade900,
+                                                            fontSize: 13,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(height: 3),
+                                                        Text(
+                                                          'Download or share your official A4 PDF receipt.',
+                                                          style: TextStyle(fontSize: 11, color: Colors.green.shade800),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 16),
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    child: ElevatedButton.icon(
+                                                      style: ElevatedButton.styleFrom(
+                                                        backgroundColor: const Color(0xFF1B5E20),
+                                                        foregroundColor: Colors.white,
+                                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius: BorderRadius.circular(8),
+                                                        ),
+                                                      ),
+                                                      icon: isDownloading
+                                                          ? const SizedBox(
+                                                              width: 18,
+                                                              height: 18,
+                                                              child: CircularProgressIndicator(
+                                                                strokeWidth: 2,
+                                                                color: Colors.white,
+                                                              ),
+                                                            )
+                                                          : const Icon(Icons.download, size: 20),
+                                                      label: Text(
+                                                        isDownloading ? 'Generating receipt...' : 'Download Receipt',
+                                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                                      ),
+                                                      onPressed: isDownloading
+                                                          ? null
+                                                          : () async {
+                                                              setDialogState(() => isDownloading = true);
+                                                              try {
+                                                                await ReceiptPdfService().downloadReceiptToDownloads(
+                                                                  dialogCtx,
+                                                                  placedOrder,
+                                                                );
+                                                              } finally {
+                                                                if (dialogCtx.mounted) {
+                                                                  setDialogState(() => isDownloading = false);
+                                                                }
+                                                              }
+                                                            },
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () {
+                                                    Navigator.pop(dialogCtx);
+                                                  },
+                                                  child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+                                                ),
+                                              ],
                                             ),
-                                          ],
-                                        ),
+                                          );
+                                        },
                                       );
                                     }
                                   } catch (e) {

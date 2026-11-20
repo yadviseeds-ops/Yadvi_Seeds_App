@@ -14,7 +14,7 @@ class ShopCreate(BaseModel):
     owner_name: Optional[str] = None
     phone: str
     email: Optional[str] = None
-    username: str
+    username: Optional[str] = None
     shop_name: str
     market_location: Optional[str] = ""
     territory: Optional[str] = None
@@ -37,6 +37,8 @@ class ShopUpdate(BaseModel):
     primary_demand_crop: Optional[str] = None
     status: Optional[str] = None
     assigned_executive_id: Optional[int] = None
+    debt_taken: Optional[float] = None
+    debt_repaid: Optional[float] = None
 
 class ShopOwnerProfileUpdate(BaseModel):
     owner_name: Optional[str] = None
@@ -69,6 +71,22 @@ class ShopOut(BaseModel):
     email: Optional[str]
     assigned_executive_id: Optional[int] = None
     assigned_executive_name: Optional[str] = None
+    debt_taken: float = 0.0
+    debt_repaid: float = 0.0
+    total_balance: float = 0.0
+
+class ShopFinancialsOut(BaseModel):
+    shop_id: int
+    debt_taken: float = 0.0
+    debt_repaid: float = 0.0
+    total_balance: float = 0.0
+
+    class Config:
+        from_attributes = True
+
+class ShopFinancialsUpdate(BaseModel):
+    debt_taken: Optional[float] = None
+    debt_repaid: Optional[float] = None
 
 class ShopAssignRequest(BaseModel):
     executive_id: Optional[int]
@@ -100,7 +118,12 @@ def create_shop(
     if not norm_phone or len(norm_phone) != 10:
         raise HTTPException(status_code=400, detail="Phone number must be a valid 10-digit mobile number.")
     if not clean_username:
-        raise HTTPException(status_code=400, detail="Username is mandatory. Please fill it.")
+        base_username = f"dealer_{norm_phone}"
+        clean_username = base_username
+        suffix = 1
+        while db.query(User).filter(User.username == clean_username).first():
+            clean_username = f"{base_username}_{suffix}"
+            suffix += 1
     if not clean_shop_name:
         raise HTTPException(status_code=400, detail="Shop Name is mandatory. Please fill it.")
     if not clean_address:
@@ -233,6 +256,9 @@ def list_shops(
             email=s.user.email if s.user else None,
             assigned_executive_id=s.assigned_executive_id,
             assigned_executive_name=s.assigned_executive.user.full_name if (s.assigned_executive and s.assigned_executive.user) else None,
+            debt_taken=float(getattr(s, 'debt_taken', 0.0) or 0.0),
+            debt_repaid=float(getattr(s, 'debt_repaid', 0.0) or 0.0),
+            total_balance=float(getattr(s, 'total_balance', 0.0) or 0.0),
         )
         for s in shops
     ]
@@ -280,7 +306,10 @@ def get_my_shop(
         phone=current_user.phone,
         email=current_user.email,
         assigned_executive_id=shop.assigned_executive_id,
-        assigned_executive_name=shop.assigned_executive.user.full_name if (shop.assigned_executive and shop.assigned_executive.user) else None
+        assigned_executive_name=shop.assigned_executive.user.full_name if (shop.assigned_executive and shop.assigned_executive.user) else None,
+        debt_taken=float(getattr(shop, 'debt_taken', 0.0) or 0.0),
+        debt_repaid=float(getattr(shop, 'debt_repaid', 0.0) or 0.0),
+        total_balance=float(getattr(shop, 'total_balance', 0.0) or 0.0),
     )
 
 
@@ -353,7 +382,10 @@ def update_my_shop_profile(
         phone=current_user.phone,
         email=current_user.email,
         assigned_executive_id=shop.assigned_executive_id,
-        assigned_executive_name=shop.assigned_executive.user.full_name if (shop.assigned_executive and shop.assigned_executive.user) else None
+        assigned_executive_name=shop.assigned_executive.user.full_name if (shop.assigned_executive and shop.assigned_executive.user) else None,
+        debt_taken=float(getattr(shop, 'debt_taken', 0.0) or 0.0),
+        debt_repaid=float(getattr(shop, 'debt_repaid', 0.0) or 0.0),
+        total_balance=float(getattr(shop, 'total_balance', 0.0) or 0.0),
     )
 
 
@@ -394,7 +426,10 @@ def get_shop(
         phone=shop.user.phone,
         email=shop.user.email,
         assigned_executive_id=shop.assigned_executive_id,
-        assigned_executive_name=exec_name
+        assigned_executive_name=exec_name,
+        debt_taken=float(getattr(shop, 'debt_taken', 0.0) or 0.0),
+        debt_repaid=float(getattr(shop, 'debt_repaid', 0.0) or 0.0),
+        total_balance=float(getattr(shop, 'total_balance', 0.0) or 0.0),
     )
 
 
@@ -503,7 +538,10 @@ def update_shop(
         phone=shop.user.phone,
         email=shop.user.email,
         assigned_executive_id=shop.assigned_executive_id,
-        assigned_executive_name=exec_name
+        assigned_executive_name=exec_name,
+        debt_taken=float(getattr(shop, 'debt_taken', 0.0) or 0.0),
+        debt_repaid=float(getattr(shop, 'debt_repaid', 0.0) or 0.0),
+        total_balance=float(getattr(shop, 'total_balance', 0.0) or 0.0),
     )
 
 @router.delete("/{shop_id}")
@@ -559,6 +597,74 @@ def delete_shop(
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error deleting shop owner: {str(exc)}")
+
+@router.get("/{shop_id}/financials", response_model=ShopFinancialsOut)
+def get_shop_financials(
+    shop_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    shop = db.query(ShopOwner).filter(ShopOwner.id == shop_id).first()
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    user_role = current_user.role.name if current_user.role else ""
+    if user_role == "administrator":
+        pass
+    elif user_role == "shop_owner":
+        if not current_user.shop_profile or current_user.shop_profile.id != shop.id:
+            raise HTTPException(status_code=403, detail="Dealers are not authorized to view another dealer's financials.")
+    else:
+        raise HTTPException(status_code=403, detail="Not authorized to view dealer financial details.")
+
+    taken = float(getattr(shop, "debt_taken", 0.0) or 0.0)
+    repaid = float(getattr(shop, "debt_repaid", 0.0) or 0.0)
+    balance = getattr(shop, "total_balance", None)
+    if balance is None:
+        balance = round(taken - repaid, 2)
+    else:
+        balance = float(balance)
+
+    return ShopFinancialsOut(
+        shop_id=shop.id,
+        debt_taken=taken,
+        debt_repaid=repaid,
+        total_balance=balance
+    )
+
+@router.put("/{shop_id}/financials", response_model=ShopFinancialsOut)
+def update_shop_financials(
+    shop_id: int,
+    data: ShopFinancialsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    user_role = current_user.role.name if current_user.role else ""
+    if user_role != "administrator":
+        raise HTTPException(status_code=403, detail="Only administrators are authorized to update financial details.")
+
+    shop = db.query(ShopOwner).filter(ShopOwner.id == shop_id).first()
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    if data.debt_taken is not None:
+        shop.debt_taken = round(float(data.debt_taken), 2)
+    if data.debt_repaid is not None:
+        shop.debt_repaid = round(float(data.debt_repaid), 2)
+
+    taken = float(getattr(shop, "debt_taken", 0.0) or 0.0)
+    repaid = float(getattr(shop, "debt_repaid", 0.0) or 0.0)
+    shop.total_balance = round(taken - repaid, 2)
+
+    db.commit()
+    db.refresh(shop)
+
+    return ShopFinancialsOut(
+        shop_id=shop.id,
+        debt_taken=float(shop.debt_taken or 0.0),
+        debt_repaid=float(shop.debt_repaid or 0.0),
+        total_balance=float(shop.total_balance or 0.0)
+    )
 
 @router.put("/{shop_id}/assign")
 def assign_shop(

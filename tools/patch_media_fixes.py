@@ -94,3 +94,4 @@ content = content.replace(old_get_storage, new_get_storage)
 with open('backend/app/core/media_storage.py', 'w', encoding='utf-8', newline='') as f:
     f.write(content)
 print('Successfully patched backend/app/core/media_storage.py')
+

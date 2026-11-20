@@ -80,17 +80,27 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF0D4A32)))
           : _error != null
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _fetchOrders,
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D4A32)),
-                        child: const Text('Retry', style: TextStyle(color: Colors.white)),
-                      ),
-                    ],
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.cloud_off, size: 48, color: Colors.grey),
+                        const SizedBox(height: 12),
+                        Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.black87, fontSize: 14),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: _fetchOrders,
+                          icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
+                          label: const Text('Retry', style: TextStyle(color: Colors.white)),
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D4A32)),
+                        ),
+                      ],
+                    ),
                   ),
                 )
               : _orders.isEmpty

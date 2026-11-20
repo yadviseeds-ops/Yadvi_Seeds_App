@@ -32,33 +32,13 @@ class _VisitDetailsScreenState extends State<VisitDetailsScreen> {
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
 
-    final ImageSource? source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            const ListTile(
-              title: Text('Choose Photo Source', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Take Photo'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Browse Gallery'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (source == null) return;
-
-    final XFile? image = await picker.pickImage(source: source, imageQuality: 80);
-    if (image != null) {
+    try {
+      // FE Visit Proof: Strictly camera-only capture to ensure genuine on-site visit verification
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+      );
+      if (image == null) return; // User cancelled camera capture
       // Get GPS eagerly for preview
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
@@ -84,6 +64,12 @@ class _VisitDetailsScreenState extends State<VisitDetailsScreen> {
         _selectedImage = image;
         _currentPosition = position;
       });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Camera capture error: '), backgroundColor: Colors.redAccent),
+        );
+      }
     }
   }
 
@@ -226,7 +212,7 @@ class _VisitDetailsScreenState extends State<VisitDetailsScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           side: const BorderSide(color: Color(0xFF0D4A32)),
                         ),
-                        child: const Text('Retake / Choose Another', style: TextStyle(color: Color(0xFF0D4A32))),
+                        child: const Text('Retake Photo with Camera', style: TextStyle(color: Color(0xFF0D4A32))),
                       ),
                     ),
                   ],
@@ -250,8 +236,8 @@ class _VisitDetailsScreenState extends State<VisitDetailsScreen> {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: _pickImage,
-                    icon: const Icon(Icons.add_a_photo, color: Colors.white),
-                    label: const Text('Upload Visit Photo', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    icon: const Icon(Icons.camera_alt, color: Colors.white),
+                    label: const Text('Capture Visit Photo Proof', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0D4A32),
                       padding: const EdgeInsets.symmetric(vertical: 20),

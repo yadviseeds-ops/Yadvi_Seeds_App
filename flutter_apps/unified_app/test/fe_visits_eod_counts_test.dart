@@ -334,9 +334,9 @@ void main() {
 
       // Verify shop name and Shop ID are displayed in the visit cards
       expect(find.text('ABC Seeds & Fertilizers'), findsWidgets);
-      expect(find.text('Shop ID: #1'), findsOneWidget);
-      expect(find.text('Shop ID: #2'), findsOneWidget);
-      expect(find.text('Shop ID: #3'), findsOneWidget);
+      expect(find.text('Dealer ID: #1'), findsOneWidget);
+      expect(find.text('Dealer ID: #2'), findsOneWidget);
+      expect(find.text('Dealer ID: #3'), findsOneWidget);
     });
 
     testWidgets("5. EOD submission fetches fresh authoritative visits right before submission", (WidgetTester tester) async {

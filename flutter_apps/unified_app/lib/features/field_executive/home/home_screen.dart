@@ -29,20 +29,66 @@ class HomeScreenState extends State<HomeScreen> {
     loadData();
   }
 
+  Future<FeProfile?> _fetchProfileSafely() async {
+    try {
+      return await _feService.getMyProfile();
+    } catch (e) {
+      debugPrint('Failed to load profile on FE Home: $e');
+      return null;
+    }
+  }
+
+  Future<List<VisitModel>> _fetchVisitsSafely() async {
+    try {
+      return await _feService.getVisits();
+    } catch (e) {
+      debugPrint('Failed to load visits on FE Home: $e');
+      return <VisitModel>[];
+    }
+  }
+
+  Future<List<OrderModel>> _fetchOrdersSafely() async {
+    try {
+      return await _feService.getMyOrders();
+    } catch (e) {
+      debugPrint('Notice: Could not load orders on FE Home: $e');
+      return <OrderModel>[];
+    }
+  }
+
   Future<void> loadData() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final results = await Future.wait([
-        _feService.getMyProfile(),
-        _feService.getVisits(),
-        _feService.getMyOrders(),
+        _fetchProfileSafely(),
+        _fetchVisitsSafely(),
+        _fetchOrdersSafely(),
       ]);
+      if (!mounted) return;
+
+      final profile = results[0] as FeProfile?;
+      final visits = results[1] as List<VisitModel>;
+      final orders = results[2] as List<OrderModel>;
+
+      if (profile == null && visits.isEmpty) {
+        setState(() {
+          _error = 'Unable to connect to server. Please check your internet connection.';
+          _isLoading = false;
+        });
+        return;
+      }
+
       setState(() {
-        _profile = results[0] as FeProfile;
-        _visits = results[1] as List<VisitModel>;
-        _orders = results[2] as List<OrderModel>;
+        if (profile != null) _profile = profile;
+        _visits = visits;
+        _orders = orders;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');
         _isLoading = false;

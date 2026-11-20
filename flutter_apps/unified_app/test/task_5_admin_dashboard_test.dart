@@ -72,7 +72,7 @@ void main() {
       expect(find.text('Pending Orders'), findsOneWidget);
       expect(find.text('In-Transit'), findsOneWidget);
       expect(find.text('Field Force'), findsOneWidget);
-      expect(find.text('Shop Owners'), findsOneWidget);
+      expect(find.text('Dealers'), findsOneWidget);
       expect(find.text('Seed Varieties'), findsOneWidget);
       expect(find.text('Visits Today'), findsOneWidget);
       expect(find.text('Daily EOD Reports'), findsOneWidget);
@@ -82,7 +82,7 @@ void main() {
       expect(find.text('153'), findsOneWidget); // Pending Orders
       expect(find.text('7'), findsOneWidget);   // In-Transit
       expect(find.text('9'), findsOneWidget);   // Field Force
-      expect(find.text('10'), findsOneWidget);  // Shop Owners
+      expect(find.text('10'), findsOneWidget);  // Dealers
       expect(find.text('43'), findsOneWidget);  // Seed Varieties
       expect(find.text('27'), findsOneWidget);  // Visits Today
       expect(find.text('18'), findsOneWidget);  // Daily EOD Reports
@@ -182,9 +182,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(navigatedIndex, equals(3));
 
-      // Shop Owners -> Tab 4
-      await tester.ensureVisible(find.text('Shop Owners'));
-      await tester.tap(find.text('Shop Owners'));
+      // Dealers -> Tab 4
+      await tester.ensureVisible(find.text('Dealers'));
+      await tester.tap(find.text('Dealers'));
       await tester.pumpAndSettle();
       expect(navigatedIndex, equals(4));
 

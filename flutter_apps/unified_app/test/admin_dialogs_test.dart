@@ -123,20 +123,20 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Tap FloatingActionButton with label 'Register Shop Owner'
-      final addBtn = find.widgetWithText(FloatingActionButton, 'Register Shop Owner');
+      // Tap FloatingActionButton with label 'Register Dealer'
+      final addBtn = find.widgetWithText(FloatingActionButton, 'Register Dealer');
       expect(addBtn, findsOneWidget);
       await tester.tap(addBtn);
       await tester.pumpAndSettle();
 
       // Verify Title
-      expect(find.text('Register Shop Owner'), findsWidgets); // FAB, Title, and Submit button
+      expect(find.text('Register Dealer'), findsWidgets); // FAB, Title, and Submit button
 
       // Verify all fields exist
-      expect(find.text('Shop / Business Name *'), findsOneWidget);
-      expect(find.text('Owner Full Name (Optional)'), findsOneWidget);
+      expect(find.text('Dealer / Business Name *'), findsOneWidget);
+      expect(find.text('Proprietor / Full Name (Optional)'), findsOneWidget);
       expect(find.text('Phone (10 Digits) *'), findsOneWidget);
-      expect(find.text('Login Username *'), findsOneWidget);
+      // Username field removed for Dealer
       expect(find.text('Market / City Location *'), findsOneWidget);
       expect(find.text('Full Address *'), findsOneWidget);
 
@@ -144,7 +144,7 @@ void main() {
       expect(find.text('Cancel'), findsOneWidget);
 
       // Trigger validation to verify error messages display cleanly
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Register Shop Owner'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Register Dealer'));
       await tester.pumpAndSettle();
 
       expect(find.text('Required'), findsWidgets);
@@ -167,11 +167,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final addBtn = find.widgetWithText(FloatingActionButton, 'Register Shop Owner');
+      final addBtn = find.widgetWithText(FloatingActionButton, 'Register Dealer');
       await tester.tap(addBtn);
       await tester.pumpAndSettle();
 
-      expect(find.text('Shop / Business Name *'), findsOneWidget);
+      expect(find.text('Dealer / Business Name *'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

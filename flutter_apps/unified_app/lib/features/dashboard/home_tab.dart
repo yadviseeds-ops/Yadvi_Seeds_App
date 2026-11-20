@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../services/shop_service.dart';
 import '../../models/product.dart';
 import '../../models/order.dart';
+import '../invoices/dealer_invoices_screen.dart';
 import '../cart/cart_provider.dart';
 import '../catalogue/product_details_screen.dart';
 import '../../core/widgets/product_image.dart';
@@ -21,7 +22,7 @@ class _HomeTabState extends State<HomeTab> {
   final ShopService _shopService = ShopService();
   List<Product> _products = [];
   List<Order> _orders = [];
-  String _shopName = 'Shop Owner Portal';
+  String _shopName = 'Dealer Portal';
   bool _isLoading = true;
 
   @override
@@ -89,7 +90,7 @@ class _HomeTabState extends State<HomeTab> {
               overflow: TextOverflow.ellipsis,
             ),
             const Text(
-              'Authorized Shop Owner Partner',
+              'Authorized Dealer Partner',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.white70,
@@ -239,10 +240,14 @@ class _HomeTabState extends State<HomeTab> {
     return Row(
       children: [
         _buildShortcutCard('Seed Catalog', Icons.local_florist_outlined, Colors.green, () => widget.onTabSelected(1)),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         _buildShortcutCard('My Orders', Icons.inventory_2_outlined, Colors.blue, () => widget.onTabSelected(3)),
-        const SizedBox(width: 12),
-        _buildShortcutCard('LR Tracking', Icons.local_shipping_outlined, Colors.purple, () => widget.onTabSelected(3)),
+        const SizedBox(width: 8),
+        _buildShortcutCard('Invoices', Icons.receipt_long_outlined, Colors.teal, () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const DealerInvoicesScreen()));
+        }),
+        const SizedBox(width: 8),
+        _buildShortcutCard('Tracking', Icons.local_shipping_outlined, Colors.purple, () => widget.onTabSelected(3)),
       ],
     );
   }

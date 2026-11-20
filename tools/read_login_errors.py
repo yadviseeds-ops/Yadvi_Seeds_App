@@ -14,3 +14,4 @@ for e in entries:
         print(f"[{ts}] {hr.get('status')} {hr.get('requestMethod')} {hr.get('requestUrl')}")
     elif txt:
         print(f"[{ts}] {txt}")
+

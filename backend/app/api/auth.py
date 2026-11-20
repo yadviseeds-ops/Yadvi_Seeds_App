@@ -65,12 +65,15 @@ def find_authorized_user(db: Session, clean_username: str, norm_mobile: str) -> 
     potential_user = db.query(User).filter(User.phone.in_(candidates)).first()
     if potential_user and normalize_phone_number(potential_user.phone) == norm_mobile and potential_user.is_active:
         user_role = potential_user.role.name if potential_user.role else ""
-        if user_role in ("shop_owner", "field_executive"):
-            u_name = (potential_user.username or "").lower().strip()
-            f_name = (potential_user.full_name or "").lower().strip()
-            c_name = clean_username.lower().strip()
-            s_name = (potential_user.shop_profile.shop_name if potential_user.shop_profile else "").lower().strip()
-            if not c_name or c_name == u_name or c_name == f_name or c_name == s_name or (c_name in ("shri", "shree") and u_name in ("shri", "shree")):
+        u_name = (potential_user.username or "").lower().strip()
+        f_name = (potential_user.full_name or "").lower().strip()
+        c_name = clean_username.lower().strip()
+        s_name = (potential_user.shop_profile.shop_name if potential_user.shop_profile else "").lower().strip()
+        if user_role == "shop_owner":
+            if not c_name or c_name == u_name or c_name == f_name or c_name == s_name:
+                return potential_user
+        elif user_role == "field_executive":
+            if c_name and (c_name == u_name or c_name == f_name or (c_name in ("shri", "shree") and u_name in ("shri", "shree"))):
                 return potential_user
 
     # 2. Authoritative database mapping check via admin_phones table
@@ -162,7 +165,7 @@ class LoginRequest(BaseModel):
     password: str
 
 class VerifyUserRequest(BaseModel):
-    username: str
+    username: Optional[str] = ""
     mobile: str
     expected_role: Optional[str] = None
 
@@ -184,7 +187,7 @@ def verify_user(
             headers={"Retry-After": str(retry_after)}
         )
 
-    clean_username = request.username.strip()
+    clean_username = (request.username or "").strip()
     norm_mobile = normalize_phone_number(request.mobile)
 
     # Standardized generic error detail for all failures (Anti-Enumeration defense)
@@ -195,6 +198,14 @@ def verify_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=generic_error
         )
+
+    if request.expected_role:
+        norm_expected = normalize_role(request.expected_role)
+        if norm_expected in ("administrator", "field_executive") and not clean_username:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=generic_error
+            )
 
     user = find_authorized_user(db, clean_username, norm_mobile)
 
@@ -226,13 +237,13 @@ def verify_user(
     return {"status": "success", "message": "User verified"}
 
 class FirebaseLoginRequest(BaseModel):
-    username: str
+    username: Optional[str] = ""
     mobile: str
     firebase_id_token: str
 
 @router.post("/login-firebase", response_model=TokenResponse)
 def login_firebase(request: FirebaseLoginRequest, db: Session = Depends(get_db)):
-    clean_username = request.username.strip()
+    clean_username = (request.username or "").strip()
     norm_mobile = normalize_phone_number(request.mobile)
 
     if not norm_mobile or len(norm_mobile) != 10:
@@ -245,6 +256,12 @@ def login_firebase(request: FirebaseLoginRequest, db: Session = Depends(get_db))
     user = find_authorized_user(db, clean_username, norm_mobile)
 
     if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials."
+        )
+
+    if not clean_username and user.role and user.role.name in ("administrator", "field_executive"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials."

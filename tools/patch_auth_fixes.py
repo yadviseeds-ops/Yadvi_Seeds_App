@@ -143,3 +143,4 @@ code = code.replace(old_find_user, new_find_user)
 with open('backend/app/api/auth.py', 'w', encoding='utf-8', newline='') as f:
     f.write(code)
 print('Successfully patched backend/app/api/auth.py')
+

@@ -143,11 +143,11 @@ void main() {
       );
 
       // Tap Shop Owner card
-      await tester.tap(find.text('Shop Owner (SO)'));
+      await tester.tap(find.text('Dealer'));
       await tester.pumpAndSettle();
 
       // Now on SO Role Login Screen
-      expect(find.text('Shop Owner (SO) Login'), findsOneWidget);
+      expect(find.text('Dealer Login'), findsOneWidget);
 
       // Tap visible AppBar back button
       final backButton = find.byType(BackButton);

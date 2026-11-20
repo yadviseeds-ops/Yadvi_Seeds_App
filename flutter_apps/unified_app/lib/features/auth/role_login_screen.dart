@@ -36,9 +36,12 @@ class _RoleLoginScreenState extends State<RoleLoginScreen> {
 
     setState(() => _isLoading = true);
 
+    final isDealer = widget.roleValue == 'shop_owner';
+    final username = isDealer ? '' : _usernameController.text.trim();
+
     try {
       await _authService.requestOtp(
-        _usernameController.text.trim(),
+        username,
         _mobileController.text.trim(),
         expectedRole: widget.roleValue,
       );
@@ -48,7 +51,7 @@ class _RoleLoginScreenState extends State<RoleLoginScreen> {
           context,
           MaterialPageRoute(
             builder: (_) => RoleOtpScreen(
-              username: _usernameController.text.trim(),
+              username: username,
               mobile: _mobileController.text.trim(),
               authService: _authService,
               roleValue: widget.roleValue,
@@ -114,22 +117,26 @@ class _RoleLoginScreenState extends State<RoleLoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Enter your registered username and mobile number to receive a verification OTP:',
+                    Text(
+                      widget.roleValue == 'shop_owner'
+                          ? 'Enter your registered mobile number to receive a verification OTP:'
+                          : 'Enter your registered username and mobile number to receive a verification OTP:',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
+                      style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
                     ),
                     const SizedBox(height: 20),
 
-                    TextFormField(
-                      controller: _usernameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Registered Username',
-                        prefixIcon: Icon(Icons.person_outline),
+                    if (widget.roleValue != 'shop_owner') ...[
+                      TextFormField(
+                        controller: _usernameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Registered Username',
+                          prefixIcon: Icon(Icons.person_outline),
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                       ),
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 14),
+                      const SizedBox(height: 14),
+                    ],
 
                     TextFormField(
                       controller: _mobileController,

@@ -32,12 +32,12 @@ class OrderCreateRequest(BaseModel):
 class OrderItemOut(BaseModel):
     id: int
     product_id: int
-    product_name: str
-    sku: str
-    image_url: str
-    package_size: str
-    quantity: float
-    unit: str
+    product_name: str = "Unknown"
+    sku: Optional[str] = ""
+    image_url: Optional[str] = ""
+    package_size: Optional[str] = "Standard"
+    quantity: float = 0.0
+    unit: str = "kg"
 
     class Config:
         from_attributes = True
@@ -47,21 +47,21 @@ class OrderOut(BaseModel):
     id: int
     order_number: str
     shop_id: int
-    shop_name: str
-    shop_location: str
-    owner_name: str
-    contact_phone: str
-    delivery_address: str
-    total_quantity_kg: float
-    total_items_count: int
-    status: str
-    source: str
-    delivery_notes: Optional[str]
-    assigned_executive_name: Optional[str]
-    lr_number: Optional[str]
-    transporter_name: Optional[str]
+    shop_name: Optional[str] = "Unknown"
+    shop_location: Optional[str] = ""
+    owner_name: Optional[str] = ""
+    contact_phone: Optional[str] = ""
+    delivery_address: Optional[str] = ""
+    total_quantity_kg: float = 0.0
+    total_items_count: int = 0
+    status: Optional[str] = "New"
+    source: Optional[str] = "Shop Owner App"
+    delivery_notes: Optional[str] = None
+    assigned_executive_name: Optional[str] = None
+    lr_number: Optional[str] = None
+    transporter_name: Optional[str] = None
     created_at: datetime
-    items: List[OrderItemOut]
+    items: List[OrderItemOut] = []
 
     class Config:
         from_attributes = True
@@ -78,8 +78,12 @@ class StatusUpdateRequest(BaseModel):
 
 def _build_order_out(order: Order) -> OrderOut:
     assigned_name = None
-    if order.assigned_executive:
-        assigned_name = order.assigned_executive.user.full_name
+    if order.assigned_executive and order.assigned_executive.user:
+        assigned_name = (
+            order.assigned_executive.user.full_name
+            or order.assigned_executive.user.username
+            or None
+        )
 
     lr_number = None
     transporter_name = None
@@ -91,14 +95,21 @@ def _build_order_out(order: Order) -> OrderOut:
     for item in order.items:
         qty = item.quantity if item.quantity is not None else float(getattr(item, 'quantity_bags', 0) or 0)
         unit = item.unit or "kg"
+        p_name = "Unknown"
+        p_sku = ""
+        p_img = ""
+        if item.product:
+            p_name = item.product.name or "Unknown"
+            p_sku = item.product.sku or ""
+            p_img = item.product.image_url or ""
         items_out.append(OrderItemOut(
             id=item.id,
             product_id=item.product_id,
-            product_name=item.product.name if item.product else "Unknown",
-            sku=item.product.sku if item.product else "",
-            image_url=item.product.image_url if item.product else "",
-            package_size=item.package_size,
-            quantity=qty,
+            product_name=p_name,
+            sku=p_sku,
+            image_url=p_img,
+            package_size=item.package_size or "Standard",
+            quantity=float(qty),
             unit=unit,
         ))
 
@@ -106,19 +117,33 @@ def _build_order_out(order: Order) -> OrderOut:
     if (total_kg is None or total_kg == 0.0) and getattr(order, 'total_quantity_bags', None):
         total_kg = float(order.total_quantity_bags)
 
+    shop_name = "Unknown"
+    shop_location = ""
+    owner_name = ""
+    contact_phone = ""
+    delivery_address = ""
+
+    if order.shop:
+        shop_name = order.shop.shop_name or "Unknown"
+        shop_location = order.shop.market_location or ""
+        delivery_address = order.shop.address or ""
+        if order.shop.user:
+            owner_name = order.shop.user.full_name or order.shop.user.username or ""
+            contact_phone = order.shop.user.phone or ""
+
     return OrderOut(
         id=order.id,
         order_number=order.order_number,
         shop_id=order.shop_id,
-        shop_name=order.shop.shop_name if order.shop else "Unknown",
-        shop_location=order.shop.market_location if order.shop else "",
-        owner_name=order.shop.user.full_name if order.shop and order.shop.user else "",
-        contact_phone=order.shop.user.phone if order.shop and order.shop.user else "",
-        delivery_address=order.shop.address if order.shop else "",
+        shop_name=shop_name,
+        shop_location=shop_location,
+        owner_name=owner_name,
+        contact_phone=contact_phone,
+        delivery_address=delivery_address,
         total_quantity_kg=round(total_kg or 0.0, 3),
-        total_items_count=order.total_items_count,
-        status=order.status,
-        source=order.source,
+        total_items_count=order.total_items_count or 0,
+        status=order.status or "New",
+        source=order.source or "Shop Owner App",
         delivery_notes=order.delivery_notes,
         assigned_executive_name=assigned_name,
         lr_number=lr_number,
@@ -204,77 +229,106 @@ def create_order(
     if not payload.items:
         raise HTTPException(status_code=400, detail="Cannot place an order with zero items")
 
-    # Validate products and quantities
-    total_kg = 0.0
-    order_items = []
-    for item_in in payload.items:
-        product = db.query(Product).filter(Product.id == item_in.product_id).first()
-        if not product:
-            raise HTTPException(status_code=404, detail=f"Product {item_in.product_id} not found")
-
-        # Determine quantity and unit
-        raw_qty = item_in.quantity if item_in.quantity is not None else item_in.quantity_bags
-        if raw_qty is None or raw_qty <= 0:
-            raise HTTPException(status_code=400, detail=f"Quantity for {product.name} must be greater than zero.")
-
-        unit = (item_in.unit or "kg").strip().lower()
-        if unit not in ["g", "kg"]:
-            raise HTTPException(status_code=400, detail=f"Invalid unit '{unit}'. Unit must be 'g' or 'kg'.")
-
-        # Convert to kg for total calculation and stock validation
-        item_kg = float(raw_qty) / 1000.0 if unit == "g" else float(raw_qty)
-        if product.available_stock_kg is not None and product.available_stock_kg < item_kg:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Insufficient stock for {product.name}. Available: {product.available_stock_kg} kg, requested: {raw_qty} {unit} ({item_kg} kg)."
+    # Check for rapid duplicate submission from same shop within 5 seconds
+    from datetime import timedelta
+    try:
+        recent_order = (
+            db.query(Order)
+            .filter(
+                Order.shop_id == shop.id,
+                Order.status == "New",
+                Order.created_at >= datetime.utcnow() - timedelta(seconds=5),
             )
+            .order_by(Order.id.desc())
+            .first()
+        )
+        if recent_order and len(recent_order.items) == len(payload.items):
+            existing_tuples = {(oi.product_id, float(oi.quantity), str(oi.unit).lower()) for oi in recent_order.items}
+            new_tuples = {(i.product_id, float(i.quantity if i.quantity is not None else (i.quantity_bags or 0)), str(i.unit or "kg").strip().lower()) for i in payload.items}
+            if existing_tuples == new_tuples:
+                logger.info(f"Duplicate order submission detected for shop {shop.id}. Returning existing order {recent_order.order_number}.")
+                return _build_order_out(recent_order)
+    except Exception as dup_err:
+        logger.warning(f"Error checking duplicate order (non-fatal): {dup_err}")
 
-        # Deduct stock
-        if product.available_stock_kg is not None:
-            product.available_stock_kg = max(0.0, product.available_stock_kg - item_kg)
-            product.available_stock_bags = int(product.available_stock_kg)
-            if product.available_stock_kg <= 0:
-                product.availability = "Out of Stock"
+    try:
+        # Validate products and quantities
+        total_kg = 0.0
+        order_items = []
+        for item_in in payload.items:
+            product = db.query(Product).filter(Product.id == item_in.product_id).first()
+            if not product:
+                raise HTTPException(status_code=404, detail=f"Product {item_in.product_id} not found")
 
-        total_kg += item_kg
+            # Determine quantity and unit
+            raw_qty = item_in.quantity if item_in.quantity is not None else item_in.quantity_bags
+            if raw_qty is None or raw_qty <= 0:
+                raise HTTPException(status_code=400, detail=f"Quantity for {product.name} must be greater than zero.")
 
-        order_items.append(OrderItem(
-            product_id=item_in.product_id,
-            package_size=item_in.package_size or "Standard",
-            quantity=float(raw_qty),
-            unit=unit,
-            quantity_bags=int(raw_qty) if unit == "kg" else max(1, int(raw_qty / 1000.0)),
-        ))
+            unit = (item_in.unit or "kg").strip().lower()
+            if unit not in ["g", "kg"]:
+                raise HTTPException(status_code=400, detail=f"Invalid unit '{unit}'. Unit must be 'g' or 'kg'.")
 
-    # Generate unique, collision-proof sequential order number
-    count = db.query(Order).count()
-    last_order = db.query(Order).order_by(Order.id.desc()).first()
-    next_num = max(1021 + count + 1, ((last_order.id + 1020) if last_order else 1021))
-    order_number = f"ORD-{next_num}"
-    while db.query(Order).filter(Order.order_number == order_number).first():
-        next_num += 1
+            # Convert to kg for total calculation and stock validation
+            item_kg = float(raw_qty) / 1000.0 if unit == "g" else float(raw_qty)
+            if product.available_stock_kg is not None and product.available_stock_kg < item_kg:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient stock for {product.name}. Available: {product.available_stock_kg} kg, requested: {raw_qty} {unit} ({item_kg} kg)."
+                )
+
+            # Deduct stock
+            if product.available_stock_kg is not None:
+                product.available_stock_kg = max(0.0, product.available_stock_kg - item_kg)
+                product.available_stock_bags = int(product.available_stock_kg)
+                if product.available_stock_kg <= 0:
+                    product.availability = "Out of Stock"
+
+            total_kg += item_kg
+
+            order_items.append(OrderItem(
+                product_id=item_in.product_id,
+                package_size=item_in.package_size or "Standard",
+                quantity=float(raw_qty),
+                unit=unit,
+                quantity_bags=int(raw_qty) if unit == "kg" else max(1, int(raw_qty / 1000.0)),
+            ))
+
+        # Generate unique, collision-proof sequential order number
+        count = db.query(Order).count()
+        last_order = db.query(Order).order_by(Order.id.desc()).first()
+        next_num = max(1021 + count + 1, ((last_order.id + 1020) if last_order else 1021))
         order_number = f"ORD-{next_num}"
+        while db.query(Order).filter(Order.order_number == order_number).first():
+            next_num += 1
+            order_number = f"ORD-{next_num}"
 
-    new_order = Order(
-        order_number=order_number,
-        shop_id=shop.id,
-        assigned_executive_id=shop.assigned_executive_id,
-        total_quantity_kg=round(total_kg, 3),
-        total_quantity_bags=int(total_kg) if total_kg >= 1 else 1,
-        total_items_count=len(order_items),
-        status="New",
-        source=payload.source or ("Shop Owner App" if role_name == "shop_owner" else "Field Executive"),
-        delivery_notes=payload.delivery_notes,
-    )
-    db.add(new_order)
-    db.flush()
+        new_order = Order(
+            order_number=order_number,
+            shop_id=shop.id,
+            assigned_executive_id=shop.assigned_executive_id,
+            total_quantity_kg=round(total_kg, 3),
+            total_quantity_bags=int(total_kg) if total_kg >= 1 else 1,
+            total_items_count=len(order_items),
+            status="New",
+            source=payload.source or ("Shop Owner App" if role_name == "shop_owner" else "Field Executive"),
+            delivery_notes=payload.delivery_notes,
+        )
+        db.add(new_order)
+        db.flush()
 
-    for oi in order_items:
-        oi.order_id = new_order.id
-        db.add(oi)
+        for oi in order_items:
+            oi.order_id = new_order.id
+            db.add(oi)
 
-    db.commit()
-    db.refresh(new_order)
+        db.commit()
+        db.refresh(new_order)
+    except Exception as e:
+        db.rollback()
+        if isinstance(e, HTTPException):
+            raise e
+        logger.error(f"Failed to create order: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to place order: {str(e)}")
 
     # Notify Admin
     try:

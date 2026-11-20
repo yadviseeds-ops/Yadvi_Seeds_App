@@ -237,7 +237,7 @@ void main() {
       await tester.pump();
 
       // Verify clear user feedback SnackBar is shown
-      expect(find.text("No visits planned for today. Tap 'Add Today's Plan' to add a shop first."), findsOneWidget);
+      expect(find.text("No visits planned for today. Tap 'Add Today's Plan' to add a dealer first."), findsOneWidget);
     });
 
     testWidgets("Clicking 'Add Today's Plan' opens the planning bottom sheet with shop selection, purpose, and duplicate prevention",
@@ -305,7 +305,7 @@ void main() {
       expect(mockFe.createdVisit, isNotNull);
       expect(mockFe.createdVisit!.shopId, equals(20));
       expect(find.text('Balaji Agro Agency'), findsOneWidget);
-      expect(find.textContaining('Shop #20'), findsOneWidget);
+      expect(find.textContaining('Dealer #20'), findsOneWidget);
     });
 
     testWidgets("Shop picker sheet allows real-time search filtering across shop name, owner, and city",
@@ -328,7 +328,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify picker header and search box
-      expect(find.text('Choose Registered Shop'), findsOneWidget);
+      expect(find.text('Choose Registered Dealer'), findsOneWidget);
       final searchField = find.byKey(const ValueKey('shop_picker_search_field'));
       expect(searchField, findsOneWidget);
 

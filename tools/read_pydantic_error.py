@@ -12,3 +12,4 @@ for e in entries:
     txt = e.get("textPayload") or e.get("jsonPayload")
     if txt:
         print(f"[{e.get('timestamp')}] {txt}")
+

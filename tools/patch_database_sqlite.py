@@ -18,3 +18,4 @@ content = content.replace(target, replacement)
 with open('backend/app/core/database.py', 'w', encoding='utf-8', newline='') as f:
     f.write(content)
 print("Updated database.py with USE_SQLITE check")
+

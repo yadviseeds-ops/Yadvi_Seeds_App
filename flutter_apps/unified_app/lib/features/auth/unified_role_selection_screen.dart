@@ -100,7 +100,7 @@ class UnifiedRoleSelectionScreen extends StatelessWidget {
                   _buildRoleCard(
                     context,
                     title: 'Field Executive (FE)',
-                    subtitle: 'Daily Shop Owner Visits, Order Booking & Reports',
+                    subtitle: 'Daily Dealer Visits, Order Booking & Reports',
                     icon: Icons.badge_outlined,
                     accentColor: Colors.orange.shade800,
                     onTap: () {
@@ -117,10 +117,10 @@ class UnifiedRoleSelectionScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
 
-                  // 3. Shop Owner Role Card
+                  // 3. Dealer Role Card
                   _buildRoleCard(
                     context,
-                    title: 'Shop Owner (SO)',
+                    title: 'Dealer',
                     subtitle: 'Seed Catalog, Direct Orders & Ledger Balance',
                     icon: Icons.storefront_outlined,
                     accentColor: Colors.teal.shade700,
@@ -130,7 +130,7 @@ class UnifiedRoleSelectionScreen extends StatelessWidget {
                         MaterialPageRoute(
                           builder: (_) => const RoleLoginScreen(
                             roleValue: 'shop_owner',
-                            roleTitle: 'Shop Owner (SO)',
+                            roleTitle: 'Dealer',
                           ),
                         ),
                       );

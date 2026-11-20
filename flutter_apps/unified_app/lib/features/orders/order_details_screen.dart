@@ -6,6 +6,7 @@ import '../../core/config/app_config.dart';
 import '../../core/storage/local_storage.dart';
 import '../../services/shop_service.dart';
 import '../cart/cart_screen.dart';
+import '../../services/receipt_pdf_service.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final Order order;
@@ -117,7 +118,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _currentOrder.shopName.isNotEmpty ? _currentOrder.shopName : 'Shop Details',
+                    _currentOrder.shopName.isNotEmpty ? _currentOrder.shopName : 'Dealer Details',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -139,6 +140,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.receipt_long, color: Colors.white),
+            tooltip: 'Download Invoice Receipt',
+            onPressed: () => ReceiptPdfService().downloadOrShareReceipt(context, _currentOrder),
+          ),
           IconButton(
             icon: const Icon(Icons.shopping_cart_outlined, color: Colors.white),
             onPressed: () {

@@ -62,7 +62,7 @@ class TodaysPlanScreenState extends State<TodaysPlanScreen> {
       if (_todayVisits.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("No visits planned for today. Tap 'Add Today's Plan' to add a shop first."),
+            content: Text("No visits planned for today. Tap 'Add Today's Plan' to add a dealer first."),
             backgroundColor: Color(0xFF0D4A32),
           ),
         );
@@ -260,7 +260,7 @@ class TodaysPlanScreenState extends State<TodaysPlanScreen> {
                                 SizedBox(height: 12),
                                 Text('No visits planned for today.', style: TextStyle(color: Colors.grey)),
                                 SizedBox(height: 6),
-                                Text("Tap 'Add Today's Plan' above to schedule shops.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                                Text("Tap 'Add Today's Plan' above to schedule dealers.", style: TextStyle(color: Colors.grey, fontSize: 12)),
                               ],
                             ),
                           ),
@@ -318,7 +318,7 @@ class TodaysPlanScreenState extends State<TodaysPlanScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  'Shop #${v.shopId} • ${v.shopLocation}',
+                  'Dealer #${v.shopId} • ${v.shopLocation}',
                   style: const TextStyle(color: Colors.grey, fontSize: 12),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -636,7 +636,7 @@ class _AddTodayPlanSheetState extends State<_AddTodayPlanSheet> {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        'Shop #${selectedShop.id} • ${selectedShop.marketLocation.isNotEmpty ? selectedShop.marketLocation : (selectedShop.city ?? "Active")}${selectedShop.ownerName.isNotEmpty ? " • ${selectedShop.ownerName}" : ""}',
+                                        'Dealer #${selectedShop.id} • ${selectedShop.marketLocation.isNotEmpty ? selectedShop.marketLocation : (selectedShop.city ?? "Active")}${selectedShop.ownerName.isNotEmpty ? " • ${selectedShop.ownerName}" : ""}',
                                         style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -644,8 +644,8 @@ class _AddTodayPlanSheetState extends State<_AddTodayPlanSheet> {
                                   )
                                 : Text(
                                     _isLoadingShops
-                                        ? 'Loading registered shops...'
-                                        : 'Choose from registered shops',
+                                        ? 'Loading registered dealers...'
+                                        : 'Choose from registered dealers',
                                     style: const TextStyle(color: Colors.grey, fontSize: 13),
                                   ),
                           ),
@@ -907,7 +907,7 @@ class _ShopPickerSheetState extends State<_ShopPickerSheet> {
                     Icon(Icons.storefront_rounded, color: Color(0xFF0D4A32), size: 22),
                     SizedBox(width: 8),
                     Text(
-                      'Choose Registered Shop',
+                      'Choose Registered Dealer',
                       style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF0D4A32)),
                     ),
                   ],
@@ -928,7 +928,7 @@ class _ShopPickerSheetState extends State<_ShopPickerSheet> {
               key: const ValueKey('shop_picker_search_field'),
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search by shop name, ID, owner, city...',
+                hintText: 'Search by dealer name, ID, proprietor, city...',
                 hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
                 prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF0D4A32)),
                 suffixIcon: _searchQuery.isNotEmpty
@@ -990,7 +990,7 @@ class _ShopPickerSheetState extends State<_ShopPickerSheet> {
                       children: [
                         CircularProgressIndicator(color: Color(0xFF0D4A32)),
                         SizedBox(height: 12),
-                        Text('Loading registered shops...', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                        Text('Loading registered dealers...', style: TextStyle(color: Colors.grey, fontSize: 13)),
                       ],
                     ),
                   )

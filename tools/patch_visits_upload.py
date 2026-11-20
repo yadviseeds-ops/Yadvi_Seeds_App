@@ -23,3 +23,4 @@ content = content.replace(target, replacement)
 with open('backend/app/api/visits.py', 'w', encoding='utf-8', newline='') as f:
     f.write(content)
 print("Updated visits.py with robust storage upload error handling")
+

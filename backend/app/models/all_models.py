@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, Float, DateTime, ForeignKey, Enum
+    Column, Integer, String, Text, Boolean, Float, Numeric, DateTime, ForeignKey, Enum
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -55,6 +55,9 @@ class ShopOwner(Base):
     primary_demand_crop = Column(String(100), nullable=True)
     status = Column(String(20), default="Active")  # Active, Inactive
     assigned_executive_id = Column(Integer, ForeignKey("field_executives.id"), nullable=True)
+    debt_taken = Column(Numeric(14, 2), default=0.0, nullable=False)
+    debt_repaid = Column(Numeric(14, 2), default=0.0, nullable=False)
+    total_balance = Column(Numeric(14, 2), default=0.0, nullable=False)
 
     user = relationship("User", back_populates="shop_profile")
     assigned_executive = relationship("FieldExecutive", back_populates="assigned_shops")

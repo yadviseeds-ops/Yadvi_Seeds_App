@@ -1,0 +1,13 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - backend/Dockerfile
+      - -t
+      - asia-south1-docker.pkg.dev/yadvi-seed-app-5f306/yadvi-backend/yadvi-api:v2.5-financial-details-20261120
+      - .
+images:
+  - asia-south1-docker.pkg.dev/yadvi-seed-app-5f306/yadvi-backend/yadvi-api:v2.5-financial-details-20261120
+timeout: 1200s
+

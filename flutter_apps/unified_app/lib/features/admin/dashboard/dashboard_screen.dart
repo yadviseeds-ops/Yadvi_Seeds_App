@@ -173,7 +173,7 @@ class DashboardScreen extends StatelessWidget {
 
               // 5. Shop Owners -> Shops tab (Tab 4)
               _buildKpiCard(
-                title: 'Shop Owners',
+                title: 'Dealers',
                 value: '${data?.totalShops ?? 0}',
                 subtitle: 'Authorized Network',
                 icon: Icons.storefront_outlined,
@@ -255,7 +255,7 @@ class DashboardScreen extends StatelessWidget {
                   title: const Text('Manage Orders',
                       style: TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: const Text(
-                      'Review shop owner orders and approve dispatches'),
+                      'Review dealer orders and approve dispatches'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => onNavigateTab(1, orderFilter: 'All'),
                 ),
@@ -294,10 +294,10 @@ class DashboardScreen extends StatelessWidget {
                     child: Icon(Icons.store_mall_directory_outlined,
                         color: Colors.purple),
                   ),
-                  title: const Text('Shop Owner Network',
+                  title: const Text('Dealer Network',
                       style: TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: const Text(
-                      'Assign officers and manage retail shops'),
+                      'Assign officers and manage dealer accounts'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => onNavigateTab(4),
                 ),

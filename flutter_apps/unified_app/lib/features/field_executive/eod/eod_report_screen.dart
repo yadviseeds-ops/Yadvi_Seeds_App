@@ -38,17 +38,40 @@ class EodReportScreenState extends State<EodReportScreen> {
     super.dispose();
   }
 
+  Future<FeProfile?> _fetchProfileSafely() async {
+    try {
+      return await _feService.getMyProfile();
+    } catch (e) {
+      debugPrint('Failed to load profile on EOD Report: $e');
+      return null;
+    }
+  }
+
+  Future<List<OrderModel>> _fetchOrdersSafely() async {
+    try {
+      return await _feService.getMyOrders();
+    } catch (e) {
+      debugPrint('Notice: Could not load orders on EOD Report: $e');
+      return <OrderModel>[];
+    }
+  }
+
   Future<void> loadData() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final results = await Future.wait([
-        _feService.getMyProfile(),
+        _fetchProfileSafely(),
         _feService.getVisits(),
-        _feService.getMyOrders(),
+        _fetchOrdersSafely(),
       ]);
       final allVisits = results[1] as List<VisitModel>;
       if (!mounted) return;
       setState(() {
-        _profile = results[0] as FeProfile;
+        final prof = results[0] as FeProfile?;
+        if (prof != null) _profile = prof;
         _todayVisits = allVisits.where((v) => v.isToday).toList();
         _orders = results[2] as List<OrderModel>;
         _isLoading = false;

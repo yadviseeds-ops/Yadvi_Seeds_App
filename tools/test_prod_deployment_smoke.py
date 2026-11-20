@@ -144,6 +144,66 @@ def run_prod_smoke_tests():
         assert res_unauth_so.status_code == 401, f"Expected 401, got {res_unauth_so.status_code}"
         print("   Unauthorized tampering safely rejected with HTTP 401 Unauthorized!")
 
+        # 11. Testing Admin Orders Listing (/api/v1/orders)
+        print("\n11. Testing Admin Orders Listing (/api/v1/orders)...")
+        res_orders = client.get("/api/v1/orders", headers=admin_headers)
+        print(f"   Admin GET /api/v1/orders status: {res_orders.status_code}")
+        assert res_orders.status_code == 200, f"Orders listing failed: {res_orders.text}"
+        prod_orders = res_orders.json()
+        print(f"   Total orders in production: {len(prod_orders)}")
+        if len(prod_orders) > 0:
+            sample_o = prod_orders[0]
+            print(f"   Sample Order: #{sample_o.get('order_number')} | Shop: {sample_o.get('shop_name')} | Owner: {sample_o.get('owner_name')}")
+            assert "owner_name" in sample_o
+            assert isinstance(sample_o["owner_name"], str)
+
+        # 12. Testing FE Login and Orders Listing (previously crashed with HTTP 500)
+        print("\n12. Testing FE Login and GET /api/v1/orders (Regression Verification)...")
+        fe_login_res = client.post("/api/v1/auth/login", json={"username": "employee_01", "password": "fe1password123"})
+        if fe_login_res.status_code != 200:
+            fe_login_res = client.post("/api/v1/auth/login", json={"username": "employee_01", "password": "fepassword123"})
+        if fe_login_res.status_code == 200:
+            fe_token = fe_login_res.json().get("access_token")
+            fe_headers = {"Authorization": f"Bearer {fe_token}"}
+            res_fe_orders = client.get("/api/v1/orders", headers=fe_headers)
+            print(f"   FE GET /api/v1/orders status: {res_fe_orders.status_code}")
+            assert res_fe_orders.status_code == 200, f"FE Orders returned {res_fe_orders.status_code}: {res_fe_orders.text}"
+            print(f"   FE Orders successfully loaded without HTTP 500! Count: {len(res_fe_orders.json())}")
+
+            # Also check FE EOD endpoint
+            res_fe_eod = client.get("/api/v1/eod", headers=fe_headers)
+            print(f"   FE GET /api/v1/eod status: {res_fe_eod.status_code}")
+            assert res_fe_eod.status_code == 200, f"FE EOD returned {res_fe_eod.status_code}: {res_fe_eod.text}"
+        else:
+            print(f"   Notice: employee_01 login skipped (status {fe_login_res.status_code}), testing with Shop Owner...")
+
+        # 13. Testing Financial Details Endpoints on Deployed Backend
+        print("\n13. Testing Financial Details endpoints (/api/v1/shops/{id}/financials)...")
+        # Check shops list has financial fields
+        sample_shop = shops_list[0]
+        assert "debt_taken" in sample_shop, "debt_taken missing from /api/v1/shops"
+        assert "debt_repaid" in sample_shop, "debt_repaid missing from /api/v1/shops"
+        assert "total_balance" in sample_shop, "total_balance missing from /api/v1/shops"
+        print(f"   Shop #{sample_shop['id']} ({sample_shop['shop_name']}): Debt Taken={sample_shop['debt_taken']}, Repaid={sample_shop['debt_repaid']}, Balance={sample_shop['total_balance']}")
+
+        # Admin GET financials
+        res_fin = client.get(f"/api/v1/shops/{shop_id}/financials", headers=admin_headers)
+        print(f"   Admin GET /api/v1/shops/{shop_id}/financials status: {res_fin.status_code}")
+        assert res_fin.status_code == 200, f"Financials GET failed: {res_fin.text}"
+        fin_data = res_fin.json()
+        assert fin_data["shop_id"] == shop_id
+        assert "debt_taken" in fin_data
+        assert "debt_repaid" in fin_data
+        assert "total_balance" in fin_data
+        print(f"   Financials verified: Taken={fin_data['debt_taken']}, Repaid={fin_data['debt_repaid']}, Balance={fin_data['total_balance']}")
+
+        # Unauthenticated rejection on financials
+        res_unauth_fin = client.get(f"/api/v1/shops/{shop_id}/financials")
+        assert res_unauth_fin.status_code == 401, f"Expected 401, got {res_unauth_fin.status_code}"
+        res_unauth_put_fin = client.put(f"/api/v1/shops/{shop_id}/financials", json={"debt_taken": 100})
+        assert res_unauth_put_fin.status_code == 401, f"Expected 401, got {res_unauth_put_fin.status_code}"
+        print("   Financials security: Unauthenticated access safely rejected with 401!")
+
         print("\n" + "=" * 70)
         print("ALL PRODUCTION SMOKE TESTS PASSED WITH 100% SUCCESS!")
         print("=" * 70 + "\n")

@@ -372,7 +372,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                             Icon(Icons.store_mall_directory_outlined, size: 20, color: AppTheme.primaryGreen),
                             SizedBox(width: 8),
                             Text(
-                              'Assigned Shops',
+                              'Assigned Dealers',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -389,7 +389,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                             border: Border.all(color: Colors.green.shade200),
                           ),
                           child: Text(
-                            'Total Assigned Shops: ${emp.totalAssignedShops}',
+                            'Total Assigned Dealers: ${emp.totalAssignedShops}',
                             key: const ValueKey('fe_profile_total_assigned_shops'),
                             style: const TextStyle(
                               fontSize: 12,
@@ -410,7 +410,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                               Icon(Icons.storefront_outlined, size: 40, color: Colors.grey.shade400),
                               const SizedBox(height: 8),
                               const Text(
-                                'No shops currently assigned to this executive.',
+                                'No dealers currently assigned to this executive.',
                                 style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
                               ),
                             ],

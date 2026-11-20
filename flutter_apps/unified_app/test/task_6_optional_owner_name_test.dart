@@ -81,7 +81,7 @@ void main() {
       expect(find.text('Owner: (Not specified)'), findsOneWidget);
     });
 
-    testWidgets('Register Shop Owner dialog displays Owner Full Name (Optional) without required validation',
+    testWidgets('Register Dealer dialog displays Proprietor / Full Name (Optional) without required validation',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
@@ -102,26 +102,22 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Tap Register Shop Owner FAB
+      // Tap Register Dealer FAB
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pumpAndSettle();
 
       // Verify dialog is open
-      expect(find.text('Register Shop Owner'), findsWidgets);
-      expect(find.text('Owner Full Name (Optional)'), findsOneWidget);
+      expect(find.text('Register Dealer'), findsWidgets);
+      expect(find.text('Proprietor / Full Name (Optional)'), findsOneWidget);
 
       // Fill in all required fields EXCEPT Owner Full Name
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Shop / Business Name *'),
+        find.widgetWithText(TextFormField, 'Dealer / Business Name *'),
         'New Farmers Mart',
       );
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Phone (10 Digits) *'),
         '9876543210',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Login Username *'),
-        'new_farmer_mart',
       );
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Market / City Location *'),
@@ -133,8 +129,8 @@ void main() {
       );
 
       // Leave Owner Full Name completely empty!
-      // Tap Submit / Register Shop Owner button in dialog
-      final submitBtn = find.widgetWithText(ElevatedButton, 'Register Shop Owner');
+      // Tap Submit / Register Dealer button in dialog
+      final submitBtn = find.widgetWithText(ElevatedButton, 'Register Dealer');
       await tester.ensureVisible(submitBtn);
       await tester.tap(submitBtn);
       await tester.pumpAndSettle();
@@ -149,7 +145,7 @@ void main() {
       expect(mockProvider.lastCreatedPayload!.containsKey('owner_name'), isFalse);
     });
 
-    testWidgets('Register Shop Owner sends owner_name when non-empty',
+    testWidgets('Register Dealer sends owner_name when non-empty',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
@@ -174,20 +170,16 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Shop / Business Name *'),
+        find.widgetWithText(TextFormField, 'Dealer / Business Name *'),
         'Aditya Seeds',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Owner Full Name (Optional)'),
+        find.widgetWithText(TextFormField, 'Proprietor / Full Name (Optional)'),
         'Aditya Varma',
       );
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Phone (10 Digits) *'),
         '9876543211',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Login Username *'),
-        'aditya_seeds',
       );
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Market / City Location *'),
@@ -198,7 +190,7 @@ void main() {
         'Main Road, Nuzvid',
       );
 
-      final submitBtn = find.widgetWithText(ElevatedButton, 'Register Shop Owner');
+      final submitBtn = find.widgetWithText(ElevatedButton, 'Register Dealer');
       await tester.ensureVisible(submitBtn);
       await tester.tap(submitBtn);
       await tester.pumpAndSettle();

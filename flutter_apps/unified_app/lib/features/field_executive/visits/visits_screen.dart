@@ -160,7 +160,7 @@ class VisitsScreenState extends State<VisitsScreen> with SingleTickerProviderSta
                     children: [
                       Text(v.shopName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0D4A32))),
                       const SizedBox(height: 2),
-                      Text('Shop ID: #${v.shopId}', style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w500)),
+                      Text('Dealer ID: #${v.shopId}', style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w500)),
                     ],
                   ),
                 ),

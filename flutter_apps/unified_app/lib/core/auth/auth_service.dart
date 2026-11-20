@@ -35,27 +35,32 @@ class AuthService {
   static String formatAuthError(dynamic error) {
     if (error is FirebaseAuthException) {
       final code = error.code;
-      final msg = error.message ?? 'No details provided';
       switch (code) {
         case 'network-request-failed':
-          return '[$code] Network error: Unable to connect to Firebase ($msg). Check internet connectivity, DNS, and Google Play Services.';
+          return 'Network error: Unable to connect to authentication server. Check internet connectivity.';
         case 'invalid-phone-number':
-          return '[$code] Invalid phone number ($msg). Please check the entered 10-digit number.';
+          return 'Invalid phone number. Please check the entered 10-digit number.';
         case 'too-many-requests':
-          return '[$code] Too many requests ($msg). SMS quota reached or device blocked temporarily.';
+          return 'Too many OTP requests for this number. Please wait before trying again.';
         case 'quota-exceeded':
-          return '[$code] Daily SMS quota exceeded ($msg).';
+          return 'Daily SMS verification quota has been reached. Please contact support or try again later.';
         case 'app-not-authorized':
-          return '[$code] App not authorized ($msg). Check SHA-1/SHA-256 fingerprints in Firebase Console.';
+          return 'App verification failed. Please contact support.';
         case 'invalid-verification-code':
-          return '[$code] Invalid verification code ($msg).';
+          return 'Invalid verification code. Please check and re-enter the 6-digit OTP.';
         case 'session-expired':
-          return '[$code] Verification session expired ($msg).';
+          return 'Verification session expired. Please request a new OTP.';
         default:
-          return '[$code] $msg';
+          return error.message != null && error.message!.isNotEmpty
+              ? 'Authentication error: ${error.message}'
+              : 'Authentication error. Please try again.';
       }
     }
-    return error.toString().replaceFirst('Exception: ', '');
+    final errStr = error.toString().replaceFirst('Exception: ', '');
+    if (errStr.contains('429') || errStr.toLowerCase().contains('too many')) {
+      return 'Too many verification requests from this network. Please try again later.';
+    }
+    return errStr;
   }
 
 

@@ -17,3 +17,4 @@ with httpx.Client(base_url=PROD_URL, timeout=15.0) as client:
     print("\nEmployees in production:")
     for e in employees:
         print(e)
+

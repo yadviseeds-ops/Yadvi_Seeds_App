@@ -33,7 +33,7 @@ void main() {
       // Verify all 3 selectable cards are present
       expect(find.text('Admin'), findsOneWidget);
       expect(find.text('Field Executive (FE)'), findsOneWidget);
-      expect(find.text('Shop Owner (SO)'), findsOneWidget);
+      expect(find.text('Dealer'), findsOneWidget);
 
       // Verify connected API footer is completely removed
       expect(find.textContaining('Connected API:'), findsNothing);

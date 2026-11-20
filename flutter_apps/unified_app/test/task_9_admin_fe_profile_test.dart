@@ -147,9 +147,9 @@ void main() {
       expect(find.text('3'), findsOneWidget); // 3 pending visits
 
       // Verify Assigned Shops Section & Total Count
-      expect(find.text('Assigned Shops'), findsOneWidget);
+      expect(find.text('Assigned Dealers'), findsOneWidget);
       expect(find.byKey(const ValueKey('fe_profile_total_assigned_shops')), findsOneWidget);
-      expect(find.text('Total Assigned Shops: 2'), findsOneWidget);
+      expect(find.text('Total Assigned Dealers: 2'), findsOneWidget);
 
       // Verify individual assigned shops are rendered
       expect(find.byKey(const ValueKey('fe_assigned_shop_11')), findsOneWidget);
@@ -204,8 +204,8 @@ void main() {
       expect(find.text('0'), findsNWidgets(2)); // Completed=0, Pending=0
 
       // Total assigned shops: 0
-      expect(find.text('Total Assigned Shops: 0'), findsOneWidget);
-      expect(find.text('No shops currently assigned to this executive.'), findsOneWidget);
+      expect(find.text('Total Assigned Dealers: 0'), findsOneWidget);
+      expect(find.text('No dealers currently assigned to this executive.'), findsOneWidget);
     });
   });
 }

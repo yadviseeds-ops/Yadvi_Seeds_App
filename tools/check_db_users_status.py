@@ -12,3 +12,4 @@ for u in users:
     print(u)
 
 conn.close()
+

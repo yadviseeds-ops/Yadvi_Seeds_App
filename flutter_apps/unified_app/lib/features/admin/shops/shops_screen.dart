@@ -51,7 +51,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text(
-                    'Select a field sales officer to manage this shop owner:',
+                    'Select a field sales officer to manage this dealer:',
                     style: TextStyle(fontSize: 14, color: AppTheme.textDark),
                   ),
                   const SizedBox(height: 16),
@@ -122,7 +122,6 @@ class _ShopsScreenState extends State<ShopsScreen> {
     final shopNameController = TextEditingController();
     final ownerNameController = TextEditingController();
     final phoneController = TextEditingController();
-    final usernameController = TextEditingController();
     final locationController = TextEditingController();
     final addressController = TextEditingController();
     bool isSaving = false;
@@ -133,7 +132,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
         builder: (ctx, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Text(
-            'Register Shop Owner',
+            'Register Dealer',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
           ),
           content: Container(
@@ -150,7 +149,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                     TextFormField(
                       controller: shopNameController,
                       decoration: const InputDecoration(
-                        labelText: 'Shop / Business Name *',
+                        labelText: 'Dealer / Business Name *',
                       ),
                       validator: (v) =>
                           (v == null || v.trim().isEmpty) ? 'Required' : null,
@@ -159,7 +158,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                     TextFormField(
                       controller: ownerNameController,
                       decoration: const InputDecoration(
-                        labelText: 'Owner Full Name (Optional)',
+                        labelText: 'Proprietor / Full Name (Optional)',
                       ),
                       validator: null,
                     ),
@@ -177,15 +176,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                           ? '10 digits required'
                           : null,
                     ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: usernameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Login Username *',
-                      ),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
+
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: locationController,
@@ -236,7 +227,6 @@ class _ShopsScreenState extends State<ShopsScreen> {
                         'shop_name': shopNameController.text.trim(),
                         if (ownerName.isNotEmpty) 'owner_name': ownerName,
                         'phone': cleanPhone,
-                        'username': usernameController.text.trim(),
                         'market_location': locationController.text.trim(),
                         'address': addressController.text.trim(),
                       };
@@ -258,7 +248,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                           scaffoldMessenger.showSnackBar(
                             const SnackBar(
                               content: Text(
-                                'Shop Owner registered successfully',
+                                'Dealer registered successfully',
                               ),
                               backgroundColor: AppTheme.primaryLight,
                             ),
@@ -286,7 +276,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text('Register Shop Owner'),
+                  : const Text('Register Dealer'),
             ),
           ],
         ),
@@ -298,9 +288,9 @@ class _ShopsScreenState extends State<ShopsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Shop Owner'),
+        title: const Text('Delete Dealer'),
         content: Text(
-          'Are you sure you want to permanently delete "${shop.shopName}"? This action cannot be undone.',
+          'Are you sure you want to permanently delete dealer "${shop.shopName}"? This action cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -317,7 +307,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      errorMessage ?? 'Shop owner permanently deleted',
+                      errorMessage ?? 'Dealer permanently deleted',
                     ),
                     backgroundColor: errorMessage == null ? AppTheme.primaryLight : Colors.redAccent,
                     duration: Duration(seconds: errorMessage == null ? 3 : 5),
@@ -350,7 +340,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
         backgroundColor: AppTheme.primaryGreen,
         icon: const Icon(Icons.add_business, color: Colors.white),
         label: const Text(
-          'Register Shop Owner',
+          'Register Dealer',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         onPressed: _showAddShopDialog,
@@ -364,7 +354,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
               controller: _searchController,
               onChanged: (v) => setState(() => _searchQuery = v.trim()),
               decoration: InputDecoration(
-                hintText: 'Search shop owner by name, shop, code or city...',
+                hintText: 'Search dealers by name, city, phone...',
                 prefixIcon: const Icon(Icons.search, size: 20),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
@@ -404,7 +394,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                           ),
                           const SizedBox(height: 8),
                           const Text(
-                            'No shop owners found',
+                            'No dealers found',
                             style: TextStyle(color: AppTheme.textMuted),
                           ),
                         ],
@@ -417,18 +407,21 @@ class _ShopsScreenState extends State<ShopsScreen> {
                         final shop = filteredShops[i];
 
                         return Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(14.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        shop.shopName,
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () => _showShopDetailsDialog(shop),
+                            child: Padding(
+                              padding: const EdgeInsets.all(14.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          shop.shopName,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,
@@ -490,7 +483,61 @@ class _ShopsScreenState extends State<ShopsScreen> {
                                     ),
                                   ],
                                 ),
-                                const Divider(height: 18),
+                                // Financial Details Summary Strip
+                                Container(
+                                  margin: const EdgeInsets.symmetric(vertical: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.shade50.withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.green.shade200),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text('Debt Taken', style: TextStyle(fontSize: 10, color: AppTheme.textMuted)),
+                                            Text(
+                                              ShopModel.formatCurrency(shop.debtTaken),
+                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text('Debt Repaid', style: TextStyle(fontSize: 10, color: AppTheme.textMuted)),
+                                            Text(
+                                              ShopModel.formatCurrency(shop.debtRepaid),
+                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text('Total Balance', style: TextStyle(fontSize: 10, color: AppTheme.textMuted, fontWeight: FontWeight.bold)),
+                                            Text(
+                                              ShopModel.formatCurrency(shop.totalBalance),
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: shop.totalBalance >= 0 ? AppTheme.primaryGreen : Colors.red.shade700,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Divider(height: 14),
                                 Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
@@ -519,7 +566,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                                         color: AppTheme.primaryGreen,
                                         size: 20,
                                       ),
-                                      tooltip: 'Edit Shop Owner',
+                                      tooltip: 'Edit Dealer',
                                       onPressed: () => _showEditShopDialog(shop),
                                     ),
                                     IconButton(
@@ -528,9 +575,28 @@ class _ShopsScreenState extends State<ShopsScreen> {
                                         color: Colors.redAccent,
                                         size: 20,
                                       ),
-                                      tooltip: 'Delete Shop Owner',
+                                      tooltip: 'Delete Dealer',
                                       onPressed: () => _confirmDelete(shop),
                                     ),
+                                    OutlinedButton.icon(
+                                      icon: const Icon(
+                                        Icons.account_balance_wallet_outlined,
+                                        size: 15,
+                                        color: AppTheme.primaryGreen,
+                                      ),
+                                      label: const Text(
+                                        'Financials',
+                                        style: TextStyle(fontSize: 12, color: AppTheme.primaryGreen),
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                        ),
+                                      ),
+                                      onPressed: () => _showFinancialDetailsDialog(shop),
+                                    ),
+                                    const SizedBox(width: 4),
                                     OutlinedButton.icon(
                                       icon: const Icon(
                                         Icons.person_pin,
@@ -553,6 +619,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                               ],
                             ),
                           ),
+                        ),
                         );
                       },
                     ),
@@ -563,7 +630,384 @@ class _ShopsScreenState extends State<ShopsScreen> {
     );
   }
 
-  void _showEditShopDialog(ShopModel shop) {
+    void _showFinancialDetailsDialog(ShopModel shop) {
+    final adminProvider = Provider.of<AdminProvider>(context, listen: false);
+    final debtTakenCtrl = TextEditingController(
+      text: shop.debtTaken != 0.0 ? shop.debtTaken.toStringAsFixed(2) : '0.00',
+    );
+    final debtRepaidCtrl = TextEditingController(
+      text: shop.debtRepaid != 0.0 ? shop.debtRepaid.toStringAsFixed(2) : '0.00',
+    );
+
+    double calculateBalance(String takenStr, String repaidStr) {
+      final taken = double.tryParse(takenStr.trim().replaceAll(',', '')) ?? 0.0;
+      final repaid = double.tryParse(repaidStr.trim().replaceAll(',', '')) ?? 0.0;
+      return double.parse((taken - repaid).toStringAsFixed(2));
+    }
+
+    double currentBalance = calculateBalance(debtTakenCtrl.text, debtRepaidCtrl.text);
+    final formKey = GlobalKey<FormState>();
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.account_balance_wallet, color: AppTheme.primaryGreen),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Financial Details: ${shop.shopName}',
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            content: Container(
+              constraints: const BoxConstraints(maxWidth: 450),
+              width: double.maxFinite,
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Manage credit and debt balances for this dealer.',
+                        style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: debtTakenCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Debt Taken *',
+                          prefixText: '₹ ',
+                          prefixIcon: Icon(Icons.arrow_circle_down_rounded, color: Colors.orange),
+                          border: OutlineInputBorder(),
+                          helperText: 'Total credit/debt taken by dealer',
+                        ),
+                        onChanged: (_) {
+                          setDialogState(() {
+                            currentBalance = calculateBalance(debtTakenCtrl.text, debtRepaidCtrl.text);
+                          });
+                        },
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Enter debt taken amount';
+                          final num = double.tryParse(v.trim().replaceAll(',', ''));
+                          if (num == null) return 'Enter a valid numeric amount';
+                          if (num < 0) return 'Amount cannot be negative';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: debtRepaidCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Debt Repaid *',
+                          prefixText: '₹ ',
+                          prefixIcon: Icon(Icons.arrow_circle_up_rounded, color: Colors.green),
+                          border: OutlineInputBorder(),
+                          helperText: 'Total amount repaid by dealer',
+                        ),
+                        onChanged: (_) {
+                          setDialogState(() {
+                            currentBalance = calculateBalance(debtTakenCtrl.text, debtRepaidCtrl.text);
+                          });
+                        },
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Enter debt repaid amount';
+                          final num = double.tryParse(v.trim().replaceAll(',', ''));
+                          if (num == null) return 'Enter a valid numeric amount';
+                          if (num < 0) return 'Amount cannot be negative';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: currentBalance >= 0 ? Colors.green.shade50 : Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: currentBalance >= 0 ? Colors.green.shade300 : Colors.red.shade300,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Total Balance (Calculated):',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.textDark,
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Colors.grey.shade300),
+                                  ),
+                                  child: const Text(
+                                    'Read-Only',
+                                    style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              ShopModel.formatCurrency(currentBalance),
+                              key: const ValueKey('admin_calculated_total_balance'),
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: currentBalance >= 0 ? const Color(0xFF0D4A32) : Colors.red.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Formula: Total Balance = Debt Taken − Debt Repaid',
+                              style: TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+                onPressed: isSaving
+                    ? null
+                    : () async {
+                        if (!formKey.currentState!.validate()) return;
+                        setDialogState(() => isSaving = true);
+
+                        final taken = double.parse(debtTakenCtrl.text.trim().replaceAll(',', ''));
+                        final repaid = double.parse(debtRepaidCtrl.text.trim().replaceAll(',', ''));
+
+                        final scaffoldMessenger = ScaffoldMessenger.of(context);
+                        final error = await adminProvider.updateShopFinancials(
+                          shop.id,
+                          debtTaken: taken,
+                          debtRepaid: repaid,
+                        );
+
+                        if (!mounted) return;
+                        if (error != null) {
+                          setDialogState(() => isSaving = false);
+                          scaffoldMessenger.showSnackBar(
+                            SnackBar(content: Text(error), backgroundColor: Colors.redAccent),
+                          );
+                        } else {
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          scaffoldMessenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('Financial details updated successfully'),
+                              backgroundColor: AppTheme.primaryGreen,
+                            ),
+                          );
+                        }
+                      },
+                child: isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Save Financials', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showShopDetailsDialog(ShopModel shop) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.storefront, color: AppTheme.primaryGreen),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Dealer Profile: ${shop.shopName}',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Personal & Store Details Section
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Store & Contact Details',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _showEditShopDialog(shop);
+                            },
+                            icon: const Icon(Icons.edit, size: 14),
+                            label: const Text('Edit Profile', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 12),
+                      _buildDetailRow('Owner Name:', shop.ownerName.isNotEmpty ? shop.ownerName : '(Not specified)'),
+                      _buildDetailRow('Mobile Phone:', '+91 ${shop.phone}'),
+                      _buildDetailRow('Username:', shop.username ?? '—'),
+                      _buildDetailRow('Market Location:', shop.marketLocation),
+                      _buildDetailRow('Address:', shop.address),
+                      _buildDetailRow('Assigned Officer:', shop.assignedExecutiveName ?? 'Unassigned'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // 2. Financial Details Section (Visually Separate)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.account_balance_wallet, size: 16, color: AppTheme.primaryGreen),
+                              SizedBox(width: 6),
+                              Text(
+                                'Financial Details',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0D4A32)),
+                              ),
+                            ],
+                          ),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryGreen,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _showFinancialDetailsDialog(shop);
+                            },
+                            icon: const Icon(Icons.edit, size: 13),
+                            label: const Text('Edit Financials', style: TextStyle(fontSize: 11)),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 12),
+                      _buildDetailRow('Debt Taken:', ShopModel.formatCurrency(shop.debtTaken)),
+                      _buildDetailRow('Debt Repaid:', ShopModel.formatCurrency(shop.debtRepaid)),
+                      const SizedBox(height: 4),
+                      _buildDetailRow(
+                        'Total Balance:',
+                        ShopModel.formatCurrency(shop.totalBalance),
+                        isBold: true,
+                        valueColor: shop.totalBalance >= 0 ? const Color(0xFF0D4A32) : Colors.red.shade700,
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Balance = Debt Taken − Debt Repaid',
+                        style: TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {bool isBold = false, Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+                color: valueColor ?? AppTheme.textDark,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+void _showEditShopDialog(ShopModel shop) {
     final adminProvider = Provider.of<AdminProvider>(context, listen: false);
     final ownerNameController = TextEditingController(text: shop.ownerName);
     final shopNameController = TextEditingController(text: shop.shopName);
@@ -588,7 +1032,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Edit Shop: ${shop.shopName}',
+                  'Edit Dealer: ${shop.shopName}',
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -606,7 +1050,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                     TextFormField(
                       controller: shopNameController,
                       decoration: const InputDecoration(
-                        labelText: 'Shop Name *',
+                        labelText: 'Dealer Name *',
                         prefixIcon: Icon(Icons.storefront_outlined),
                       ),
                       validator: (v) => (v == null || v.trim().isEmpty) ? 'Shop Name is required' : null,
@@ -615,7 +1059,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                     TextFormField(
                       controller: ownerNameController,
                       decoration: const InputDecoration(
-                        labelText: 'Owner Full Name (Optional)',
+                        labelText: 'Proprietor / Full Name (Optional)',
                         prefixIcon: Icon(Icons.person_outline),
                       ),
                     ),
@@ -726,21 +1170,22 @@ class _ShopsScreenState extends State<ShopsScreen> {
                       if (emailController.text.trim().isNotEmpty) {
                         payload['email'] = emailController.text.trim();
                       }
+                      final scaffoldMessenger = ScaffoldMessenger.of(context);
                       final error = await adminProvider.updateShop(shop.id, payload);
                       if (!mounted) return;
                       if (error != null) {
                         setDialogState(() => isSaving = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        scaffoldMessenger.showSnackBar(
                           SnackBar(
                             content: Text(error),
                             backgroundColor: Colors.redAccent,
                           ),
                         );
                       } else {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        scaffoldMessenger.showSnackBar(
                           const SnackBar(
-                            content: Text('Shop Owner updated successfully'),
+                            content: Text('Dealer updated successfully'),
                             backgroundColor: AppTheme.primaryGreen,
                           ),
                         );

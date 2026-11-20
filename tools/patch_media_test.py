@@ -65,3 +65,4 @@ content = content.replace(old_methods, new_methods)
 with open('backend/test_media_storage.py', 'w', encoding='utf-8', newline='') as f:
     f.write(content)
 print("Updated test_media_storage.py to use async anyio")
+

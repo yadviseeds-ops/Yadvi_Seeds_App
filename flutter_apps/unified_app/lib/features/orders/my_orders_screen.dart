@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/shop_service.dart';
 import '../../models/order.dart';
 import 'order_details_screen.dart';
+import '../invoices/dealer_invoices_screen.dart';
 
 class MyOrdersScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -61,6 +62,13 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
           onPressed: _handleBack,
         ),
         title: const Text('My Orders'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.receipt_long),
+            tooltip: 'My Invoices',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DealerInvoicesScreen())),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

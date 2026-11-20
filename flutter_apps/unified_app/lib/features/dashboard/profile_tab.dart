@@ -7,6 +7,7 @@ import '../cart/cart_provider.dart';
 import '../../core/network/api_client.dart';
 import '../../core/config/app_config.dart';
 import '../../services/shop_service.dart';
+import '../../models/shop_model.dart';
 
 class ProfileTab extends StatefulWidget {
   final VoidCallback? onBack;
@@ -91,7 +92,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 children: [
                   Icon(Icons.edit, color: Color(0xFF0D4A32)),
                   SizedBox(width: 8),
-                  Text('Edit Shop Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  Text('Edit Dealer Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                 ],
               ),
               content: Form(
@@ -153,10 +154,10 @@ class _ProfileTabState extends State<ProfileTab> {
                       TextFormField(
                         controller: shopNameCtrl,
                         decoration: const InputDecoration(
-                          labelText: 'Shop / Business Name *',
+                          labelText: 'Dealer / Business Name *',
                           border: OutlineInputBorder(),
                         ),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Shop name is required' : null,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Dealer name is required' : null,
                       ),
                       const SizedBox(height: 14),
 
@@ -326,6 +327,9 @@ class _ProfileTabState extends State<ProfileTab> {
     final marketLocation = data['market_location'] ?? 'Unspecified';
     final officerName = data['assigned_executive_name'] ?? 'Not Assigned';
     final ownerPhotoUrl = data['owner_photo_url'];
+    final double debtTaken = ((data['debt_taken'] as num?)?.toDouble()) ?? 0.0;
+    final double debtRepaid = ((data['debt_repaid'] as num?)?.toDouble()) ?? 0.0;
+    final double totalBalance = ((data['total_balance'] as num?)?.toDouble()) ?? (debtTaken - debtRepaid);
 
     String initial = 'U';
     if (ownerName.isNotEmpty) {
@@ -454,7 +458,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   const SizedBox(height: 16),
                   _buildCredentialRow('Username:', username),
                   const SizedBox(height: 12),
-                  _buildCredentialRow('Shop Name:', shopName),
+                  _buildCredentialRow('Dealer Name:', shopName),
                   const SizedBox(height: 12),
                   _buildCredentialRow('Email:', email),
                   const SizedBox(height: 12),
@@ -464,6 +468,92 @@ class _ProfileTabState extends State<ProfileTab> {
                 ],
               ),
             ),
+            const SizedBox(height: 20),
+
+            // Financial Details Card (Read-Only)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.account_balance_wallet, size: 20, color: Color(0xFF0D4A32)),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Financial Details',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.lock_outline, size: 12, color: Colors.grey.shade600),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Managed by Admin',
+                              style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildCredentialRow('Debt Taken:', ShopModel.formatCurrency(debtTaken)),
+                  const SizedBox(height: 12),
+                  _buildCredentialRow('Debt Repaid:', ShopModel.formatCurrency(debtRepaid)),
+                  const Divider(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Total Balance:',
+                        style: TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: totalBalance > 0
+                              ? Colors.red.shade50
+                              : (totalBalance < 0 ? Colors.blue.shade50 : Colors.green.shade50),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: totalBalance > 0
+                                ? Colors.red.shade200
+                                : (totalBalance < 0 ? Colors.blue.shade200 : Colors.green.shade200),
+                          ),
+                        ),
+                        child: Text(
+                          ShopModel.formatCurrency(totalBalance),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: totalBalance > 0
+                                ? Colors.red.shade800
+                                : (totalBalance < 0 ? Colors.blue.shade800 : Colors.green.shade800),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
             const SizedBox(height: 20),
 
             // Distributor Credentials Card
