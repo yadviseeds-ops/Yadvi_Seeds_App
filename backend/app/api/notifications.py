@@ -324,6 +324,10 @@ def process_gupshup_outbox(
     Triggers the outbox worker loop to dispatch pending notifications to Gupshup.
     Admin restricted.
     """
+    role_name = getattr(current_user.role, "name", "") if getattr(current_user, "role", None) else ""
+    if role_name != "administrator":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator role required")
+
     summary = gupshup_whatsapp_service.process_outbox_queue(db=db, max_batch=max_batch)
     return {"success": True, "summary": summary}
 
@@ -340,6 +344,10 @@ def get_gupshup_outbox_status(
     """
     Returns outbox queue metrics. Admin restricted.
     """
+    role_name = getattr(current_user.role, "name", "") if getattr(current_user, "role", None) else ""
+    if role_name != "administrator":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator role required")
+
     from app.models.all_models import WhatsAppOutbox
     from sqlalchemy import func
 

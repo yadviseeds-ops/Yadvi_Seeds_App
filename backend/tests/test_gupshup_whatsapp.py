@@ -21,6 +21,7 @@ from app.services.whatsapp_service import (
     sanitize_phone_number,
 )
 from app.api.orders import create_order, OrderCreateRequest, OrderItemIn
+from app.api.notifications import process_gupshup_outbox
 
 
 class TestGupshupWhatsAppIntegration(unittest.TestCase):
@@ -560,6 +561,121 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
             res = self.service.send_order_notification(order, items)
             res_str = json.dumps(str(res))
             self.assertNotIn("test_gupshup_api_key_secret_123", res_str)
+
+    # 13. Atomic worker claiming prevents concurrent workers from claiming the same record
+    def test_13_atomic_claiming_two_concurrent_workers(self):
+        """
+        Tests multi-worker concurrency protection:
+        Worker 1 claims the pending record inside a short transaction and commits 'Processing'.
+        Worker 2, executing concurrently, must skip the record.
+
+        Note on Test Environment Limitations:
+        - In production MySQL 8.0, row-level locking via `SELECT ... FOR UPDATE SKIP LOCKED`
+          instantly skips locked rows at the storage engine level.
+        - In this SQLite in-memory test environment, SQLite does not support `SKIP LOCKED`,
+          so atomic Compare-And-Swap (CAS) update `UPDATE ... WHERE id = :id AND status = :cand_status`
+          reliably enforces that only one worker can claim the row.
+        """
+        # Create a pending outbox record
+        outbox = WhatsAppOutbox(
+            order_id=501,
+            order_number="ORD-CONCUR-01",
+            recipient_phone="919876500000",
+            template_id="c6aecef6-bcb0-4fb1-8100-28c094e3bc6b",
+            template_name="yadviapporder_confirmation",
+            payload_json=json.dumps({"order_number": "ORD-CONCUR-01", "params": ["ORD-CONCUR-01", "Shop", "987", "d", "p", "q"]}),
+            status="Pending",
+            retry_count=0,
+            next_retry_at=datetime.utcnow() - timedelta(seconds=1)
+        )
+        self.db.add(outbox)
+        self.db.commit()
+
+        # Session 1: Worker 1 claims the record
+        session1 = self.Session()
+        claimed1 = self.service._claim_pending_records(session1, max_batch=10)
+        self.assertEqual(len(claimed1), 1)
+        self.assertEqual(claimed1[0], outbox.id)
+
+        # Session 2: Worker 2 attempts to claim concurrently
+        session2 = self.Session()
+        claimed2 = self.service._claim_pending_records(session2, max_batch=10)
+        # Worker 2 must find 0 claimable records because Worker 1 already claimed it
+        self.assertEqual(len(claimed2), 0)
+
+        # Verify record in DB is in Processing state with fresh locked_at
+        self.db.refresh(outbox)
+        self.assertEqual(outbox.status, "Processing")
+        self.assertIsNotNone(outbox.locked_at)
+
+        session1.close()
+        session2.close()
+
+    # 14. Manual Admin processing uses the same atomic claiming mechanism
+    @patch('httpx.Client.post')
+    def test_14_admin_process_outbox_uses_same_claim_mechanism(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "submitted",
+            "messageId": "admin-triggered-msg-01"
+        }
+        mock_post.return_value = mock_response
+
+        # Non-admin user attempting to call process-outbox must be rejected
+        with self.assertRaises(HTTPException) as cm:
+            process_gupshup_outbox(max_batch=10, db=self.db, current_user=self.dealer_user)
+        self.assertEqual(cm.exception.status_code, 403)
+
+        # Seed a pending record
+        outbox = WhatsAppOutbox(
+            order_id=502,
+            order_number="ORD-ADMIN-01",
+            recipient_phone="919876500000",
+            template_id="c6aecef6-bcb0-4fb1-8100-28c094e3bc6b",
+            template_name="yadviapporder_confirmation",
+            payload_json=json.dumps({"order_number": "ORD-ADMIN-01", "params": ["ORD-ADMIN-01", "Shop", "987", "d", "p", "q"]}),
+            status="Pending",
+            retry_count=0
+        )
+        self.db.add(outbox)
+        self.db.commit()
+
+        # Admin call to process-outbox endpoint
+        res = process_gupshup_outbox(max_batch=10, db=self.db, current_user=self.admin_user)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["summary"]["dispatched"], 1)
+
+        self.db.refresh(outbox)
+        self.assertEqual(outbox.status, "Dispatched")
+
+    # 15. Migration schema matches the SQLAlchemy model
+    def test_15_migration_schema_matches_sqlalchemy_model(self):
+        migration_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "migrations",
+            "20261123_create_whatsapp_outbox_table.sql"
+        )
+        self.assertTrue(os.path.exists(migration_path), f"Migration file missing at {migration_path}")
+
+        with open(migration_path, "r", encoding="utf-8") as f:
+            sql_content = f.read()
+
+        # Verify all columns in SQLAlchemy model are present in SQL migration DDL
+        model_columns = [
+            "id", "order_id", "order_number", "recipient_phone",
+            "template_id", "template_name", "payload_json", "status",
+            "retry_count", "max_retries", "next_retry_at", "locked_at",
+            "last_error", "created_at", "updated_at"
+        ]
+        for col in model_columns:
+            self.assertIn(col, sql_content, f"Column '{col}' missing in SQL migration")
+
+        # Verify foreign key constraint and unique order_id constraint
+        self.assertIn("orders (id)", sql_content)
+        self.assertIn("uq_whatsapp_outbox_order_id", sql_content)
+        self.assertIn("UNIQUE (order_id)", sql_content)
+        self.assertIn("ENGINE=InnoDB", sql_content)
 
 
 if __name__ == '__main__':

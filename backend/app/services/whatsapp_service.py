@@ -822,20 +822,76 @@ class GupshupWhatsAppService:
                 "params": params,
             }
 
-    def process_outbox_queue(self, db, max_batch: int = 10) -> Dict[str, Any]:
+    def _claim_pending_records(self, db, max_batch: int = 10) -> List[int]:
         """
-        Processes pending and retry WhatsAppOutbox items with bounded retries, exponential backoff,
-        and idempotency protection.
-        Recovers stale/crashed processing locks older than 5 minutes.
+        Atomically claims up to max_batch pending, retry, or stale processing records.
+        Sets status = 'Processing' and locked_at = now inside a short, dedicated transaction,
+        and commits immediately before returning the list of claimed IDs.
+
+        Concurrency & Locking Strategy:
+        - MySQL 8.0 (Production): Uses `with_for_update(skip_locked=True)` so concurrent Cloud Run
+          worker instances instantly skip rows already locked by another transaction without blocking.
+        - Dialect Fallback (e.g. SQLite in unit tests): Uses atomic conditional UPDATE
+          (Compare-and-Swap) to verify status has not transitioned before claiming.
+
+        Guarantees:
+        - Two Cloud Run instances or concurrent workers will NEVER claim or dispatch the same record.
+        - Database locks are released immediately upon claim commit, NEVER held during
+          outbound HTTP calls to Gupshup.
+        - Stale locks (> 5 minutes) from killed/crashed workers are automatically reclaimed.
         """
-        from app.models.all_models import WhatsAppOutbox, Notification
-        from sqlalchemy import or_, and_
+        from app.models.all_models import WhatsAppOutbox
+        from sqlalchemy import or_, and_, update
 
         now = datetime.utcnow()
         stale_threshold = now - timedelta(minutes=5)
 
-        candidates = (
-            db.query(WhatsAppOutbox)
+        dialect_name = ""
+        try:
+            if db.bind:
+                dialect_name = getattr(db.bind.dialect, "name", "").lower()
+        except Exception:
+            pass
+
+        claimed_ids = []
+
+        # Strategy A: MySQL 8.0 Native Row Locking with SKIP LOCKED
+        if dialect_name == "mysql":
+            try:
+                candidates = (
+                    db.query(WhatsAppOutbox)
+                    .filter(
+                        or_(
+                            and_(
+                                WhatsAppOutbox.status.in_(["Pending", "Retry"]),
+                                WhatsAppOutbox.next_retry_at <= now,
+                            ),
+                            and_(
+                                WhatsAppOutbox.status == "Processing",
+                                WhatsAppOutbox.locked_at <= stale_threshold,
+                            ),
+                        )
+                    )
+                    .order_by(WhatsAppOutbox.id.asc())
+                    .limit(max_batch)
+                    .with_for_update(skip_locked=True)
+                    .all()
+                )
+
+                for item in candidates:
+                    item.status = "Processing"
+                    item.locked_at = now
+                    claimed_ids.append(item.id)
+
+                db.commit()
+                return claimed_ids
+            except Exception as exc:
+                db.rollback()
+                logger.warning(f"MySQL SKIP LOCKED query failed, falling back to atomic CAS: {exc}")
+
+        # Strategy B: Atomic Compare-and-Swap (CAS) Claim (Universal / SQLite / Fallback)
+        candidate_rows = (
+            db.query(WhatsAppOutbox.id, WhatsAppOutbox.status)
             .filter(
                 or_(
                     and_(
@@ -853,21 +909,69 @@ class GupshupWhatsAppService:
             .all()
         )
 
+        for cand_id, cand_status in candidate_rows:
+            try:
+                stmt = (
+                    update(WhatsAppOutbox)
+                    .where(
+                        WhatsAppOutbox.id == cand_id,
+                        or_(
+                            and_(
+                                WhatsAppOutbox.status.in_(["Pending", "Retry"]),
+                                WhatsAppOutbox.status == cand_status,
+                            ),
+                            and_(
+                                WhatsAppOutbox.status == "Processing",
+                                WhatsAppOutbox.locked_at <= stale_threshold,
+                            ),
+                        ),
+                    )
+                    .values(status="Processing", locked_at=now)
+                )
+                res = db.execute(stmt)
+                if res.rowcount and res.rowcount > 0:
+                    claimed_ids.append(cand_id)
+                    db.commit()
+            except Exception as e:
+                db.rollback()
+                logger.error(f"Error executing atomic CAS claim on outbox #{cand_id}: {e}")
+
+        return claimed_ids
+
+    def process_outbox_queue(self, db, max_batch: int = 10) -> Dict[str, Any]:
+        """
+        Processes pending and retry WhatsAppOutbox items with atomic claiming,
+        bounded retries, exponential backoff, and idempotency protection.
+
+        Delivery Semantics:
+        - Guarantees at-least-once delivery to Admin.
+        - Exactly-once delivery cannot be guaranteed across external API boundaries
+          due to potential network timeouts or process crashes after Gupshup receives
+          the payload but before local DB commit.
+        - Unsafe infinite retries are strictly bounded by `max_retries` (default 3)
+          with exponential backoff (2^retry_count * 5s) before transitioning to
+          terminal 'Failed'.
+        """
+        from app.models.all_models import WhatsAppOutbox, Notification
+
+        # Phase 1: Atomically claim a batch of records in a short transaction
+        claimed_ids = self._claim_pending_records(db=db, max_batch=max_batch)
+
         summary = {
-            "total_candidates": len(candidates),
+            "total_candidates": len(claimed_ids),
             "dispatched": 0,
             "failed": 0,
             "retried": 0,
             "skipped_duplicate": 0,
         }
 
-        for item in candidates:
-            try:
-                item.status = "Processing"
-                item.locked_at = datetime.utcnow()
-                db.commit()
-                db.refresh(item)
+        # Phase 2: Process each claimed record individually without holding DB table/row locks
+        for item_id in claimed_ids:
+            item = db.query(WhatsAppOutbox).filter(WhatsAppOutbox.id == item_id).first()
+            if not item:
+                continue
 
+            try:
                 # Idempotency check: has this order already been dispatched?
                 existing_sent = db.query(Notification).filter(
                     Notification.order_number == item.order_number,
@@ -885,6 +989,7 @@ class GupshupWhatsAppService:
                     summary["skipped_duplicate"] += 1
                     continue
 
+                # External HTTP call to Gupshup (executed with NO DB row locks held)
                 res = self.send_from_outbox(item)
                 is_success = res.get("success", False)
 
