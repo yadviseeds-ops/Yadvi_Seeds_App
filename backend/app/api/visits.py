@@ -14,7 +14,7 @@ from app.core.media_storage import (
     validate_image_content,
     generate_safe_filename,
 )
-from app.models.all_models import Visit, FieldExecutive, ShopOwner, User
+from app.models.all_models import Visit, FieldExecutive, ShopOwner, User, Attendance
 
 logger = logging.getLogger(__name__)
 
@@ -303,6 +303,41 @@ def upload_visit_photo(
 
     if notes:
         visit.notes = notes
+
+    # Automatically mark attendance for the Field Executive for today (Asia/Kolkata)
+    if visit.executive_id:
+        try:
+            ist_start_utc, ist_end_utc = get_ist_reporting_window_utc()
+            existing_att = (
+                db.query(Attendance)
+                .filter(
+                    Attendance.executive_id == visit.executive_id,
+                    Attendance.date >= ist_start_utc,
+                    Attendance.date <= ist_end_utc,
+                )
+                .first()
+            )
+
+            now_utc = datetime.utcnow()
+            if not existing_att:
+                shop_name = visit.shop.shop_name if visit.shop else "Field"
+                new_att = Attendance(
+                    executive_id=visit.executive_id,
+                    date=ist_start_utc,
+                    check_in_time=now_utc,
+                    status="Present",
+                    check_in_location=f"Visit #{visit.id} - {shop_name}",
+                )
+                db.add(new_att)
+            else:
+                existing_att.status = "Present"
+                if not existing_att.check_in_time:
+                    existing_att.check_in_time = now_utc
+
+            if visit.executive:
+                visit.executive.attendance_status = "Present"
+        except Exception as att_err:
+            logger.warning(f"Could not update attendance on photo upload: {att_err}")
 
     db.commit()
     db.refresh(visit)

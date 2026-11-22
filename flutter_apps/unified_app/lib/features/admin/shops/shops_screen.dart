@@ -4,6 +4,20 @@ import 'package:unified_app/core/theme/app_theme.dart';
 import 'package:unified_app/models/shop_model.dart';
 import 'package:unified_app/providers/admin_provider.dart';
 
+enum DealerBalanceFilter {
+  all,
+  outstanding,
+  zeroBalance,
+  fullyRepaid,
+}
+
+enum DealerSortOption {
+  highestBalance,
+  lowestBalance,
+  nameAsc,
+  nameDesc,
+}
+
 class ShopsScreen extends StatefulWidget {
   const ShopsScreen({super.key});
 
@@ -14,6 +28,8 @@ class ShopsScreen extends StatefulWidget {
 class _ShopsScreenState extends State<ShopsScreen> {
   String _searchQuery = '';
   final _searchController = TextEditingController();
+  DealerBalanceFilter _selectedFilter = DealerBalanceFilter.all;
+  DealerSortOption _selectedSort = DealerSortOption.highestBalance;
 
   @override
   void initState() {
@@ -131,6 +147,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          actionsOverflowButtonSpacing: 8,
           title: const Text(
             'Register Dealer',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
@@ -322,17 +339,80 @@ class _ShopsScreenState extends State<ShopsScreen> {
     );
   }
 
+  Widget _buildFilterChip(String label, DealerBalanceFilter filter, {Color? badgeColor, Color? textColor}) {
+    final isSelected = _selectedFilter == filter;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) => setState(() => _selectedFilter = filter),
+      selectedColor: AppTheme.primaryGreen,
+      backgroundColor: badgeColor ?? Colors.grey.shade100,
+      labelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+        color: isSelected ? Colors.white : (textColor ?? Colors.black87),
+      ),
+      visualDensity: VisualDensity.compact,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    );
+  }
+
+  String _getSortLabel(DealerSortOption option) {
+    switch (option) {
+      case DealerSortOption.highestBalance:
+        return 'Highest Balance';
+      case DealerSortOption.lowestBalance:
+        return 'Lowest Balance';
+      case DealerSortOption.nameAsc:
+        return 'Name A–Z';
+      case DealerSortOption.nameDesc:
+        return 'Name Z–A';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final adminProvider = Provider.of<AdminProvider>(context);
 
-    final filteredShops = adminProvider.shops.where((s) {
-      return _searchQuery.isEmpty ||
+    final allShops = adminProvider.shops;
+    final int totalCount = allShops.length;
+    final int outstandingCount = allShops.where((s) => s.totalBalance > 0).length;
+    final int zeroBalanceCount = allShops.where((s) => s.totalBalance == 0.0).length;
+    final int fullyRepaidCount = allShops.where((s) => s.debtRepaid >= s.debtTaken).length;
+
+    final filteredShops = allShops.where((s) {
+      final matchesSearch = _searchQuery.isEmpty ||
           s.shopName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           s.ownerName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           s.marketLocation.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           s.phone.contains(_searchQuery);
+
+      if (!matchesSearch) return false;
+
+      switch (_selectedFilter) {
+        case DealerBalanceFilter.outstanding:
+          return s.totalBalance > 0;
+        case DealerBalanceFilter.zeroBalance:
+          return s.totalBalance == 0.0;
+        case DealerBalanceFilter.fullyRepaid:
+          return s.debtRepaid >= s.debtTaken;
+        case DealerBalanceFilter.all:
+          return true;
+      }
     }).toList();
+
+    filteredShops.sort((a, b) {
+      switch (_selectedSort) {
+        case DealerSortOption.highestBalance:
+          return b.totalBalance.compareTo(a.totalBalance);
+        case DealerSortOption.lowestBalance:
+          return a.totalBalance.compareTo(b.totalBalance);
+        case DealerSortOption.nameAsc:
+          return a.shopName.toLowerCase().compareTo(b.shopName.toLowerCase());
+        case DealerSortOption.nameDesc:
+          return b.shopName.toLowerCase().compareTo(a.shopName.toLowerCase());
+      }
+    });
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundGrey,
@@ -372,6 +452,96 @@ class _ShopsScreenState extends State<ShopsScreen> {
               ),
             ),
           ),
+          // Filter Chips Row
+          Container(
+            color: Colors.white,
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildFilterChip('All Dealers ($totalCount)', DealerBalanceFilter.all),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('Outstanding ($outstandingCount)', DealerBalanceFilter.outstanding, badgeColor: Colors.red.shade50, textColor: Colors.red.shade900),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('Zero Balance ($zeroBalanceCount)', DealerBalanceFilter.zeroBalance, badgeColor: Colors.green.shade50, textColor: Colors.green.shade900),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('Fully Repaid ($fullyRepaidCount)', DealerBalanceFilter.fullyRepaid, badgeColor: Colors.blue.shade50, textColor: Colors.blue.shade900),
+                ],
+              ),
+            ),
+          ),
+          // Sort Bar Row
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    '${filteredShops.length} of $totalCount Dealers',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                PopupMenuButton<DealerSortOption>(
+                  initialValue: _selectedSort,
+                  tooltip: 'Sort Dealers',
+                  onSelected: (option) => setState(() => _selectedSort = option),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.sort, size: 16, color: Color(0xFF0D4A32)),
+                        const SizedBox(width: 4),
+                        Text(
+                          _getSortLabel(_selectedSort),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0D4A32),
+                          ),
+                        ),
+                        const Icon(Icons.arrow_drop_down, size: 16, color: Color(0xFF0D4A32)),
+                      ],
+                    ),
+                  ),
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem(
+                      value: DealerSortOption.highestBalance,
+                      child: Text('Highest Balance First'),
+                    ),
+                    const PopupMenuItem(
+                      value: DealerSortOption.lowestBalance,
+                      child: Text('Lowest Balance First'),
+                    ),
+                    const PopupMenuItem(
+                      value: DealerSortOption.nameAsc,
+                      child: Text('Dealer Name A–Z'),
+                    ),
+                    const PopupMenuItem(
+                      value: DealerSortOption.nameDesc,
+                      child: Text('Dealer Name Z–A'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () => adminProvider.fetchShops(),

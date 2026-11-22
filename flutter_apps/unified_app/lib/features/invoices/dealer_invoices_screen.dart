@@ -3,6 +3,8 @@ import '../../models/order.dart';
 import '../../services/shop_service.dart';
 import '../../services/receipt_pdf_service.dart';
 import '../../core/theme/app_theme.dart';
+import 'pdf_viewer_screen.dart';
+import 'downloaded_invoices_screen.dart';
 
 class DealerInvoicesScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -83,6 +85,14 @@ class _DealerInvoicesScreenState extends State<DealerInvoicesScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download_done, color: Colors.white),
+            tooltip: 'Downloaded Invoices',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DownloadedInvoicesScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             tooltip: 'Refresh',
@@ -243,7 +253,30 @@ class _DealerInvoicesScreenState extends State<DealerInvoicesScreen> {
                             ),
                             icon: const Icon(Icons.visibility, size: 16),
                             label: const Text('View'),
-                            onPressed: () => _receiptPdfService.printReceipt(context, order),
+                            onPressed: () async {
+                              final scaffold = ScaffoldMessenger.of(context);
+                              try {
+                                final bytes = await _receiptPdfService.generateReceiptPdf(order);
+                                if (!context.mounted) return;
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PdfViewerScreen(
+                                      title: invoiceNumber,
+                                      pdfBytes: bytes,
+                                      fileName: ReceiptPdfService.getReceiptFileName(order),
+                                    ),
+                                  ),
+                                );
+                              } catch (e) {
+                                scaffold.showSnackBar(
+                                  SnackBar(
+                                    content: Text('Failed to load PDF preview: $e'),
+                                    backgroundColor: Colors.redAccent,
+                                  ),
+                                );
+                              }
+                            },
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton.icon(

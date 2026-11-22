@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from app.core.database import get_db
 from app.core.security import get_current_user, require_role
 from app.models.all_models import Attendance, FieldExecutive, User
@@ -15,12 +15,13 @@ class AttendanceOut(BaseModel):
     executive_id: int
     employee_code: str
     full_name: str
+    phone: Optional[str] = None
     date: datetime
-    check_in_time: Optional[datetime]
-    check_out_time: Optional[datetime]
+    check_in_time: Optional[datetime] = None
+    check_out_time: Optional[datetime] = None
     status: str
-    distance_covered_km: float
-    check_in_location: Optional[str]
+    distance_covered_km: float = 0.0
+    check_in_location: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -36,30 +37,82 @@ class CheckOutRequest(BaseModel):
 
 @router.get("", response_model=List[AttendanceOut])
 def list_attendance(
+    date: Optional[str] = Query(None, description="Target date in YYYY-MM-DD format"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(["administrator"]))
 ):
-    """List all attendance records — Admin only."""
+    """List attendance records with FE roster calculation for selected date — Admin only."""
+    IST_OFFSET = timedelta(hours=5, minutes=30)
+
+    if date and date.strip():
+        try:
+            target_date = datetime.strptime(date.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Expected YYYY-MM-DD")
+    else:
+        # Default to today in Asia/Kolkata
+        target_date = (datetime.utcnow() + IST_OFFSET).date()
+
+    # UTC window corresponding to full day in Asia/Kolkata
+    dt_ist_start = datetime(target_date.year, target_date.month, target_date.day)
+    ist_start_utc = dt_ist_start - IST_OFFSET
+    ist_end_utc = ist_start_utc + timedelta(days=1) - timedelta(microseconds=1)
+
+    # Fetch all active Field Executives
+    executives = (
+        db.query(FieldExecutive)
+        .join(User, FieldExecutive.user_id == User.id)
+        .options(joinedload(FieldExecutive.user))
+        .filter(User.is_active == True)
+        .order_by(User.full_name)
+        .all()
+    )
+
+    # Fetch attendance records for target date window
     records = (
         db.query(Attendance)
         .options(joinedload(Attendance.executive).joinedload(FieldExecutive.user))
-        .order_by(Attendance.date.desc())
+        .filter(Attendance.date >= ist_start_utc, Attendance.date <= ist_end_utc)
         .all()
     )
+
+    records_by_exec = {rec.executive_id: rec for rec in records}
+
     result = []
-    for rec in records:
-        result.append(AttendanceOut(
-            id=rec.id,
-            executive_id=rec.executive_id,
-            employee_code=rec.executive.employee_code if rec.executive else "",
-            full_name=rec.executive.user.full_name if rec.executive and rec.executive.user else "Unknown",
-            date=rec.date,
-            check_in_time=rec.check_in_time,
-            check_out_time=rec.check_out_time,
-            status=rec.status,
-            distance_covered_km=rec.distance_covered_km,
-            check_in_location=rec.check_in_location,
-        ))
+    for ex in executives:
+        rec = records_by_exec.get(ex.id)
+        full_name = ex.user.full_name if ex.user and ex.user.full_name else "Unknown"
+        phone = ex.user.phone if ex.user else None
+
+        if rec and rec.status.lower() == "present":
+            result.append(AttendanceOut(
+                id=rec.id,
+                executive_id=ex.id,
+                employee_code=ex.employee_code or "",
+                full_name=full_name,
+                phone=phone,
+                date=rec.date,
+                check_in_time=rec.check_in_time,
+                check_out_time=rec.check_out_time,
+                status="Present",
+                distance_covered_km=rec.distance_covered_km or 0.0,
+                check_in_location=rec.check_in_location,
+            ))
+        else:
+            result.append(AttendanceOut(
+                id=rec.id if rec else 0,
+                executive_id=ex.id,
+                employee_code=ex.employee_code or "",
+                full_name=full_name,
+                phone=phone,
+                date=dt_ist_start,
+                check_in_time=rec.check_in_time if rec else None,
+                check_out_time=rec.check_out_time if rec else None,
+                status="Absent",
+                distance_covered_km=rec.distance_covered_km if rec else 0.0,
+                check_in_location=rec.check_in_location if rec else None,
+            ))
+
     return result
 
 

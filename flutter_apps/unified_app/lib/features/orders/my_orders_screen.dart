@@ -3,6 +3,7 @@ import '../../services/shop_service.dart';
 import '../../models/order.dart';
 import 'order_details_screen.dart';
 import '../invoices/dealer_invoices_screen.dart';
+import '../invoices/downloaded_invoices_screen.dart';
 
 class MyOrdersScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -64,9 +65,20 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
         title: const Text('My Orders'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.file_download_outlined),
+            tooltip: 'Downloaded Invoices',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DownloadedInvoicesScreen()),
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.receipt_long),
-            tooltip: 'My Invoices',
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DealerInvoicesScreen())),
+            tooltip: 'All Invoices',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DealerInvoicesScreen()),
+            ),
           ),
         ],
       ),

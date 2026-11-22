@@ -1,4 +1,5 @@
 import 'file_saver_service.dart';
+import 'downloaded_invoices_service.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart' show BuildContext, ScaffoldMessenger, SnackBar, Color, Colors, Text;
 import 'package:flutter/services.dart' show rootBundle;
@@ -522,9 +523,17 @@ static String generateInvoiceNumber(Order order) {
         fileName: fileName,
       );
 
-      if (!context.mounted) return result;
-
       if (result.success) {
+        try {
+          await DownloadedInvoicesService.recordDownload(
+            invoiceNumber: generateInvoiceNumber(order),
+            orderNumber: order.orderNumber,
+            fileName: result.fileName,
+            filePath: result.filePath,
+          );
+        } catch (_) {}
+
+        if (!context.mounted) return result;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Receipt downloaded successfully: ${result.fileName}'),

@@ -3,6 +3,7 @@ class AttendanceModel {
   final int executiveId;
   final String employeeCode;
   final String fullName;
+  final String? phone;
   final DateTime date;
   final DateTime? checkInTime;
   final DateTime? checkOutTime;
@@ -15,6 +16,7 @@ class AttendanceModel {
     required this.executiveId,
     required this.employeeCode,
     required this.fullName,
+    this.phone,
     required this.date,
     this.checkInTime,
     this.checkOutTime,
@@ -47,6 +49,7 @@ class AttendanceModel {
       executiveId: json['executive_id'] ?? 0,
       employeeCode: json['employee_code']?.toString() ?? '',
       fullName: json['full_name']?.toString() ?? 'Unknown',
+      phone: json['phone']?.toString(),
       date: parseDate(json['date']),
       checkInTime: parseNullableDate(json['check_in_time']),
       checkOutTime: parseNullableDate(json['check_out_time']),

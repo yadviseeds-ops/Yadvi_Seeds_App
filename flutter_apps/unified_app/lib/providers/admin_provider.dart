@@ -490,19 +490,29 @@ class AdminProvider extends ChangeNotifier {
   }
 
   // 6. Attendance
-  Future<void> fetchAttendance() async {
+  String? _attendanceError;
+  String? get attendanceError => _attendanceError;
+
+  Future<void> fetchAttendance({String? date}) async {
     _isLoadingAttendance = true;
+    _attendanceError = null;
     notifyListeners();
 
     try {
-      final res = await _apiClient.get('/api/v1/attendance');
+      final endpoint = (date != null && date.trim().isNotEmpty)
+          ? '/api/v1/attendance?date=${date.trim()}'
+          : '/api/v1/attendance';
+      final res = await _apiClient.get(endpoint);
       if (res.statusCode == 200) {
         final List data = jsonDecode(res.body);
         _attendance = data
             .map((item) => AttendanceModel.fromJson(item))
             .toList();
+      } else {
+        _attendanceError = 'Failed to load attendance (HTTP ${res.statusCode})';
       }
     } catch (e) {
+      _attendanceError = e.toString();
       debugPrint('[AdminProvider] Error loading attendance: $e');
     } finally {
       _isLoadingAttendance = false;
