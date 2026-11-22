@@ -266,10 +266,16 @@ async def process_gupshup_webhook(
     Receives DLR (delivery receipt) and event callbacks from Gupshup.
     Guarantees:
     - Safe non-blocking execution.
-    - Verified secret check if GUPSHUP_WEBHOOK_SECRET is configured (via query token, secret param, or header).
+    - Verified secret check if GUPSHUP_WEBHOOK_SECRET is configured:
+      Supports query parameter `?secret=<token>` or `?token=<token>`, header `token`,
+      `Authorization: Bearer <token>`, or `X-Gupshup-Signature` (HMAC SHA-256).
+      Note: Passing webhook credentials via query string parameter is a practical convention
+      when configuring Gupshup webhook URLs in their portal. Production deployment should confirm
+      Gupshup's exact webhook auth support (custom headers vs query param) with provider documentation.
     - Matches Gupshup messageId / gsId / id to Notification.meta_message_id.
     - Enforces monotonic status transitions.
     - Handles duplicate callbacks idempotently.
+    - Handles system/probe events (connectivity-check, platform-event) gracefully.
     - Records delivered_at, read_at, error codes and sanitized reasons.
     - Always responds promptly with HTTP 200.
     """
@@ -313,20 +319,41 @@ async def process_gupshup_webhook(
 @router.post(
     "/gupshup/process-outbox",
     summary="Process Pending Gupshup WhatsApp Outbox Queue",
-    description="Manually triggers processing of pending and retry outbox messages with exponential backoff. Admin only."
+    description="Manually triggers processing of pending and retry outbox messages with exponential backoff. Optionally resets failed records. Admin only."
 )
 def process_gupshup_outbox(
     max_batch: int = Query(10, ge=1, le=50),
+    retry_failed: bool = Query(False, description="If True, re-queues terminal 'Failed' outbox records for retry before claiming"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(["administrator"]))
 ):
     """
     Triggers the outbox worker loop to dispatch pending notifications to Gupshup.
     Admin restricted.
+
+    If `retry_failed` is True, any outbox records in terminal 'Failed' state will have
+    their status safely reset to 'Retry' and retry_count reset to 0, allowing them to be
+    claimed by the standard atomic claiming mechanism.
     """
     role_name = getattr(current_user.role, "name", "") if getattr(current_user, "role", None) else ""
     if role_name != "administrator":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator role required")
+
+    if retry_failed:
+        from app.models.all_models import WhatsAppOutbox
+        requeued_count = (
+            db.query(WhatsAppOutbox)
+            .filter(WhatsAppOutbox.status == "Failed")
+            .update({
+                WhatsAppOutbox.status: "Retry",
+                WhatsAppOutbox.retry_count: 0,
+                WhatsAppOutbox.next_retry_at: datetime.utcnow(),
+                WhatsAppOutbox.locked_at: None,
+                WhatsAppOutbox.last_error: "Re-queued by Administrator",
+            })
+        )
+        db.commit()
+        logger.info(f"Admin re-queued {requeued_count} failed WhatsAppOutbox records for retry.")
 
     summary = gupshup_whatsapp_service.process_outbox_queue(db=db, max_batch=max_batch)
     return {"success": True, "summary": summary}

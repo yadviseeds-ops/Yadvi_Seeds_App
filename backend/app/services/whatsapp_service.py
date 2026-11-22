@@ -46,13 +46,25 @@ class GupshupWhatsAppService:
     """
     Enterprise Gupshup WhatsApp Business API integration for YADVI Hybrid Seeds.
 
-    Adheres strictly to enterprise rules:
+    Delivery Semantics & Failure Boundaries:
+    - Transactional Persistence: WhatsAppOutbox entries are committed atomically
+      within the same database transaction as the Order, guaranteeing that every
+      created Order has a durable notification record without synchronous HTTP overhead.
+    - At-Least-Once Delivery Attempts: The outbox worker repeatedly attempts dispatch
+      with exponential backoff (2^retry_count * 5s) up to `max_retries` (default: 3).
+    - Terminal Failures: Records that exhaust all retries transition to status='Failed'.
+      They do NOT disappear; they remain in the database for Administrator visibility
+      via the `/api/v1/notifications/gupshup/outbox-status` endpoint and can be
+      re-queued via `/api/v1/notifications/gupshup/process-outbox?retry_failed=true`.
+    - Duplicate Delivery Across External Boundary: Exactly-once delivery cannot be
+      guaranteed across external network boundaries. If Gupshup receives a dispatch
+      request but the network connection times out before the client receives the HTTP response,
+      a subsequent retry may result in Gupshup dispatching a duplicate message.
+      The outbox worker checks existing Notification records before dispatch to minimize this window.
+    - Strict configuration enforcement: GUPSHUP_APP_NAME (src.name) and GUPSHUP_TEMPLATE_ID
+      (approved template UUID) are required for live API calls.
     - Never logs, returns, or prints API keys or authorization headers.
     - Masks phone numbers in all log messages.
-    - Distinct sender (GUPSHUP_SOURCE_NUMBER) and Admin recipient (GUPSHUP_ADMIN_RECIPIENT).
-    - Gupshup official endpoint: https://api.gupshup.io/wa/api/v1/template/msg
-    - Template name: yadviapporder_confirmation (Category: UTILITY, Language: en_US)
-    - Formats all 6 template variables accurately according to order & dealer data.
     - Non-blocking error handling that never crashes order placement or FastAPI.
     - Idempotent and monotonic delivery-status tracking via webhooks.
     """
@@ -525,7 +537,13 @@ class GupshupWhatsAppService:
         }
 
         # Validate callback event structure
-        event_type = event_data.get("type")
+        event_type = (event_data.get("type") or "").strip().lower()
+
+        # Handle system, platform, or probe events cleanly
+        if event_type in ("connectivity-check", "platform-event", "health-check", "system-event"):
+            logger.info(f"Acknowledged Gupshup {event_type} webhook callback cleanly.")
+            return {"status": "acknowledged", "event_type": event_type}
+
         payload = event_data.get("payload", {})
         if not isinstance(payload, dict):
             return {"status": "ignored", "reason": "invalid_payload_format"}
@@ -540,6 +558,10 @@ class GupshupWhatsAppService:
 
         if not status_raw:
             return {"status": "ignored", "reason": "missing_status_type"}
+
+        if status_raw not in STATUS_RANKS:
+            logger.info(f"Acknowledged unrecognized Gupshup status event '{status_raw}' without modification.")
+            return {"status": "acknowledged", "reason": f"unknown_status_type_{status_raw}"}
 
         # Import Notification model dynamically to avoid circular dependencies
         from app.models.all_models import Notification
@@ -891,7 +913,7 @@ class GupshupWhatsAppService:
 
         # Strategy B: Atomic Compare-and-Swap (CAS) Claim (Universal / SQLite / Fallback)
         candidate_rows = (
-            db.query(WhatsAppOutbox.id, WhatsAppOutbox.status)
+            db.query(WhatsAppOutbox.id, WhatsAppOutbox.status, WhatsAppOutbox.locked_at)
             .filter(
                 or_(
                     and_(
@@ -909,22 +931,32 @@ class GupshupWhatsAppService:
             .all()
         )
 
-        for cand_id, cand_status in candidate_rows:
+        for cand_id, cand_status, cand_locked_at in candidate_rows:
             try:
+                # Build strict CAS condition matching exact observed state:
+                # - For Pending/Retry: status must still equal observed status, and next_retry_at <= now.
+                # - For Stale Processing: locked_at must strictly equal the previously observed
+                #   locked_at timestamp AND still satisfy the stale threshold.
+                # This guarantees that if two workers simultaneously observe the same stale row,
+                # only the first to commit will match locked_at == cand_locked_at; the second worker's
+                # CAS will find rowcount == 0 and skip it.
+                if cand_status in ("Pending", "Retry"):
+                    cas_condition = and_(
+                        WhatsAppOutbox.status == cand_status,
+                        WhatsAppOutbox.next_retry_at <= now,
+                    )
+                else:  # cand_status == "Processing"
+                    cas_condition = and_(
+                        WhatsAppOutbox.status == "Processing",
+                        WhatsAppOutbox.locked_at == cand_locked_at,
+                        WhatsAppOutbox.locked_at <= stale_threshold,
+                    )
+
                 stmt = (
                     update(WhatsAppOutbox)
                     .where(
                         WhatsAppOutbox.id == cand_id,
-                        or_(
-                            and_(
-                                WhatsAppOutbox.status.in_(["Pending", "Retry"]),
-                                WhatsAppOutbox.status == cand_status,
-                            ),
-                            and_(
-                                WhatsAppOutbox.status == "Processing",
-                                WhatsAppOutbox.locked_at <= stale_threshold,
-                            ),
-                        ),
+                        cas_condition,
                     )
                     .values(status="Processing", locked_at=now)
                 )

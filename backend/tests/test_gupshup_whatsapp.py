@@ -677,6 +677,171 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
         self.assertIn("UNIQUE (order_id)", sql_content)
         self.assertIn("ENGINE=InnoDB", sql_content)
 
+        # Inspect actual SQLAlchemy Table metadata
+        table = WhatsAppOutbox.__table__
+        for col in model_columns:
+            self.assertIn(col, table.c, f"Column '{col}' missing in SQLAlchemy Table metadata")
+
+        # Verify foreign key metadata
+        fk = list(table.c.order_id.foreign_keys)[0]
+        self.assertEqual(fk.target_fullname, "orders.id")
+        self.assertEqual(fk.ondelete, "CASCADE")
+        self.assertEqual(fk.onupdate, "CASCADE")
+
+        # Verify composite indexes
+        index_names = {idx.name for idx in table.indexes}
+        self.assertIn("idx_whatsapp_outbox_worker_schedule", index_names)
+        self.assertIn("idx_whatsapp_outbox_stale_lock", index_names)
+
+    # 16. Two competing workers attempting to reclaim the same stale Processing record
+    def test_16_atomic_claiming_stale_record_concurrency(self):
+        """
+        Tests multi-worker concurrency when recovering stale 'Processing' records:
+        A record was claimed previously by Worker A which crashed 10 minutes ago (locked_at <= stale_threshold).
+        Worker 1 and Worker 2 concurrently run _claim_pending_records.
+        The CAS condition (WhatsAppOutbox.locked_at == cand_locked_at) guarantees that only
+        ONE worker can successfully update and claim the record.
+        """
+        stale_time = datetime.utcnow() - timedelta(minutes=10)
+        outbox = WhatsAppOutbox(
+            order_id=505,
+            order_number="ORD-STALE-CONCUR",
+            recipient_phone="919876500000",
+            template_id="c6aecef6-bcb0-4fb1-8100-28c094e3bc6b",
+            template_name="yadviapporder_confirmation",
+            payload_json=json.dumps({"order_number": "ORD-STALE-CONCUR", "params": ["ORD-STALE-CONCUR", "Shop", "987", "d", "p", "q"]}),
+            status="Processing",
+            locked_at=stale_time,
+            retry_count=1,
+            next_retry_at=datetime.utcnow() - timedelta(minutes=15)
+        )
+        self.db.add(outbox)
+        self.db.commit()
+
+        # Worker 1 claims the stale record
+        session1 = self.Session()
+        claimed1 = self.service._claim_pending_records(session1, max_batch=10)
+        self.assertEqual(len(claimed1), 1)
+        self.assertEqual(claimed1[0], outbox.id)
+
+        # Worker 2 attempts to claim concurrently
+        session2 = self.Session()
+        claimed2 = self.service._claim_pending_records(session2, max_batch=10)
+        self.assertEqual(len(claimed2), 0)
+
+        # Verify outbox has a refreshed locked_at > stale_time
+        self.db.refresh(outbox)
+        self.assertEqual(outbox.status, "Processing")
+        self.assertGreater(outbox.locked_at, stale_time)
+
+        session1.close()
+        session2.close()
+
+    # 17. Gupshup webhook probe events (connectivity-check, platform-event)
+    def test_17_webhook_connectivity_and_platform_probe_events(self):
+        # Gupshup connectivity-check probe
+        event_conn = {"type": "connectivity-check"}
+        res_conn = GupshupWhatsAppService.process_webhook_event(event_conn, self.db)
+        self.assertEqual(res_conn["status"], "acknowledged")
+        self.assertEqual(res_conn["event_type"], "connectivity-check")
+
+        # Gupshup platform-event
+        event_plat = {"type": "platform-event", "payload": {"code": "100", "info": "ping"}}
+        res_plat = GupshupWhatsAppService.process_webhook_event(event_plat, self.db)
+        self.assertEqual(res_plat["status"], "acknowledged")
+        self.assertEqual(res_plat["event_type"], "platform-event")
+
+        # Gupshup health-check
+        event_health = {"type": "health-check"}
+        res_health = GupshupWhatsAppService.process_webhook_event(event_health, self.db)
+        self.assertEqual(res_health["status"], "acknowledged")
+        self.assertEqual(res_health["event_type"], "health-check")
+
+    # 18. Gupshup webhook unknown status and message ID mapping (gsId vs id)
+    def test_18_webhook_unknown_status_and_id_mapping(self):
+        # Create a notification with meta_message_id = 'gs-wamid-mapping-999'
+        notif = Notification(
+            recipient_phone="919876500000",
+            channel="WhatsApp",
+            order_number="ORD-MAP-01",
+            status="Sent",
+            meta_message_id="gs-wamid-mapping-999",
+            delivery_status="Sent",
+            message_content="Template: yadviapporder_confirmation",
+        )
+        self.db.add(notif)
+        self.db.commit()
+
+        # Unknown status type acknowledged cleanly without corrupting notification status
+        event_unknown = {
+            "type": "message-event",
+            "payload": {
+                "gsId": "gs-wamid-mapping-999",
+                "type": "custom_provider_ack",
+            }
+        }
+        res_unk = GupshupWhatsAppService.process_webhook_event(event_unknown, self.db)
+        self.assertEqual(res_unk["status"], "acknowledged")
+        self.assertIn("unknown_status_type", res_unk["reason"])
+
+        self.db.refresh(notif)
+        self.assertEqual(notif.delivery_status, "Sent")
+
+        # Event using payload.id instead of payload.gsId
+        event_by_id = {
+            "type": "message-event",
+            "payload": {
+                "id": "gs-wamid-mapping-999",
+                "type": "delivered",
+            }
+        }
+        res_id = GupshupWhatsAppService.process_webhook_event(event_by_id, self.db)
+        self.assertEqual(res_id["status"], "updated")
+        self.assertEqual(res_id["new_status"], "Delivered")
+
+        self.db.refresh(notif)
+        self.assertEqual(notif.delivery_status, "Delivered")
+
+    # 19. Admin can safely re-queue terminal Failed outbox records
+    @patch('httpx.Client.post')
+    def test_19_admin_retry_failed_records(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "submitted",
+            "messageId": "requeued-msg-id-123"
+        }
+        mock_post.return_value = mock_response
+
+        # Create a record that previously failed terminally
+        failed_outbox = WhatsAppOutbox(
+            order_id=506,
+            order_number="ORD-FAILED-RETRY",
+            recipient_phone="919876500000",
+            template_id="c6aecef6-bcb0-4fb1-8100-28c094e3bc6b",
+            template_name="yadviapporder_confirmation",
+            payload_json=json.dumps({"order_number": "ORD-FAILED-RETRY", "params": ["ORD-FAILED-RETRY", "Shop", "987", "d", "p", "q"]}),
+            status="Failed",
+            retry_count=3,
+            last_error="Simulated network failure"
+        )
+        self.db.add(failed_outbox)
+        self.db.commit()
+
+        # Admin calls process_gupshup_outbox with retry_failed=True
+        res = process_gupshup_outbox(
+            max_batch=10,
+            retry_failed=True,
+            db=self.db,
+            current_user=self.admin_user
+        )
+        self.assertTrue(res["success"])
+        self.assertEqual(res["summary"]["dispatched"], 1)
+
+        self.db.refresh(failed_outbox)
+        self.assertEqual(failed_outbox.status, "Dispatched")
+        self.assertIsNone(failed_outbox.locked_at)
+
 
 if __name__ == '__main__':
     unittest.main()
