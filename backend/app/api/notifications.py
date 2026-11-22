@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.security import require_role
 from app.models.all_models import User, Notification
 from app.core.whatsapp import whatsapp_service, mask_phone_number
+from app.services.whatsapp_service import gupshup_whatsapp_service
 
 logger = logging.getLogger("yadvi_webhook")
 
@@ -240,3 +241,84 @@ async def process_whatsapp_webhook(
                     )
 
     return {"status": "ok"}
+
+
+@router.post(
+    "/gupshup-webhook",
+    summary="Gupshup WhatsApp Status & Delivery Callback",
+    description="Processes asynchronous delivery receipts (enqueued, sent, delivered, read, failed) from Gupshup."
+)
+async def process_gupshup_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_gupshup_signature: Optional[str] = Header(None, alias="X-Gupshup-Signature")
+):
+    """
+    Receives DLR (delivery receipt) and event callbacks from Gupshup.
+    Guarantees:
+    - Safe non-blocking execution.
+    - Matches Gupshup messageId / gsId / id to Notification.meta_message_id.
+    - Enforces monotonic status transitions.
+    - Records delivered_at, read_at, error codes and sanitized reasons.
+    - Returns HTTP 200 immediately.
+    """
+    raw_body = await request.body()
+    secret = getattr(settings, "GUPSHUP_WEBHOOK_SECRET", None)
+    if secret:
+        # Validate HMAC-SHA256 signature if webhook secret is configured
+        if not x_gupshup_signature:
+            logger.warning("Missing X-Gupshup-Signature header on webhook callback.")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing signature header")
+        expected_sig = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+        if not secrets.compare_digest(x_gupshup_signature.strip(), expected_sig):
+            logger.warning("Invalid X-Gupshup-Signature on webhook callback.")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
+
+    try:
+        data = json.loads(raw_body.decode("utf-8") if raw_body else "{}")
+    except Exception:
+        return {"status": "ignored", "reason": "invalid_json"}
+
+    result = gupshup_whatsapp_service.process_webhook_event(data, db)
+    return result
+
+
+@router.get(
+    "/gupshup/template-status",
+    summary="Inspect Gupshup WhatsApp Template Approval Status",
+    description="Checks whether the yadviapporder_confirmation template is APPROVED, PENDING, or REJECTED. Admin only."
+)
+def get_gupshup_template_status(
+    current_user: User = Depends(require_role(["administrator"]))
+):
+    """
+    Inspects Gupshup template approval status for `yadviapporder_confirmation`.
+    Restricted to Administrator role.
+    """
+    return gupshup_whatsapp_service.check_template_status()
+
+
+@router.get(
+    "/gupshup/config-status",
+    summary="Check Gupshup Configuration Status",
+    description="Inspects whether Gupshup credentials and sender/recipient numbers are configured without exposing secrets. Admin only."
+)
+def get_gupshup_config_status(
+    current_user: User = Depends(require_role(["administrator"]))
+):
+    """
+    Returns masked Gupshup configuration status. Never reveals API keys.
+    """
+    return {
+        "configured": gupshup_whatsapp_service.is_configured(),
+        "has_api_key": bool(gupshup_whatsapp_service.api_key),
+        "has_source_number": bool(gupshup_whatsapp_service.source_number),
+        "source_number_masked": mask_phone_number(gupshup_whatsapp_service.source_number),
+        "has_admin_recipient": bool(gupshup_whatsapp_service.admin_recipient),
+        "admin_recipient_masked": mask_phone_number(gupshup_whatsapp_service.admin_recipient),
+        "app_id": gupshup_whatsapp_service.app_id,
+        "app_name": gupshup_whatsapp_service.app_name,
+        "template_name": gupshup_whatsapp_service.template_name,
+        "template_id": gupshup_whatsapp_service.template_id,
+        "template_lang": gupshup_whatsapp_service.template_lang,
+    }

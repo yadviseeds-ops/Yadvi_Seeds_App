@@ -1,4 +1,5 @@
 import logging
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
@@ -9,6 +10,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_role
 from app.models.all_models import Order, OrderItem, ShopOwner, FieldExecutive, Product, User, Shipment, Notification
 from app.core.whatsapp import whatsapp_service
+from app.services.whatsapp_service import gupshup_whatsapp_service
 
 logger = logging.getLogger("yadvi_orders")
 
@@ -354,58 +356,97 @@ def create_order(
         .first()
     )
 
-    # WhatsApp Order Confirmation to configured test recipient
+    # WhatsApp Order Notification to designated Admin recipient
     try:
-        recipient_for_record = (
-            whatsapp_service.test_recipient
-            or (fresh.shop.user.phone if fresh.shop and fresh.shop.user else "Unknown")
-        )
+        if gupshup_whatsapp_service.is_configured():
+            # Check idempotency to prevent duplicate notifications if endpoint is retried
+            existing_sent = db.query(Notification).filter(
+                Notification.order_number == fresh.order_number,
+                Notification.channel == "WhatsApp",
+                Notification.message_content.contains(gupshup_whatsapp_service.template_name),
+                Notification.status.in_(["Sent", "Delivered", "Read", "Submitted"])
+            ).first()
 
-        # Check idempotency to prevent duplicate notifications if endpoint is retried
-        existing_sent = db.query(Notification).filter(
-            Notification.order_number == fresh.order_number,
-            Notification.channel == "WhatsApp",
-            Notification.message_content.contains("Order Confirmation"),
-            Notification.status.in_(["Sent", "Delivered", "Read"])
-        ).first()
-
-        if existing_sent:
-            logger.info(f"WhatsApp confirmation already sent for order {fresh.order_number}. Skipping duplicate dispatch.")
-        else:
-            send_res = whatsapp_service.send_order_confirmation(fresh, fresh.items)
-            is_success = send_res.get("success", False)
-            notif_status = "Sent" if is_success else "Failed"
-            deliv_status = "Accepted" if is_success else "Failed"
-            meta_id = send_res.get("meta_message_id")
-            err_code = send_res.get("error_code")
-            err_msg = send_res.get("message") if not is_success else None
-
-            db_notif = Notification(
-                recipient_phone=recipient_for_record,
-                channel="WhatsApp",
-                order_number=fresh.order_number,
-                shop_name=fresh.shop.shop_name if fresh.shop else "N/A",
-                total_bags=fresh.total_quantity_bags,
-                total_quantity_kg=fresh.total_quantity_kg,
-                status=notif_status,
-                meta_message_id=meta_id,
-                delivery_status=deliv_status,
-                meta_error_code=err_code,
-                meta_error_message=err_msg,
-                message_content=send_res.get("message_text", "")
-            )
-            db.add(db_notif)
-            db.commit()
-
-            if send_res.get("success"):
-                logger.info(f"WhatsApp order confirmation accepted by Meta for order {fresh.order_number}")
+            if existing_sent:
+                logger.info(f"Gupshup WhatsApp notification already dispatched for order {fresh.order_number}. Skipping duplicate.")
             else:
-                logger.warning(
-                    f"WhatsApp order confirmation rejected or failed for order {fresh.order_number}: {send_res.get('message')}"
+                send_res = gupshup_whatsapp_service.send_order_notification(fresh, fresh.items)
+                is_success = send_res.get("success", False)
+                notif_status = "Sent" if is_success else "Failed"
+                deliv_status = "Submitted" if is_success else "Failed"
+                msg_id = send_res.get("message_id")
+                err_code = str(send_res.get("error_code") or "")
+                err_msg = send_res.get("message") if not is_success else None
+                params_repr = json.dumps(send_res.get("params", []))
+
+                db_notif = Notification(
+                    recipient_phone=gupshup_whatsapp_service.admin_recipient or "Admin",
+                    channel="WhatsApp",
+                    order_number=fresh.order_number,
+                    shop_name=fresh.shop.shop_name if fresh.shop else "N/A",
+                    total_bags=fresh.total_quantity_bags,
+                    total_quantity_kg=fresh.total_quantity_kg,
+                    status=notif_status,
+                    meta_message_id=msg_id,
+                    delivery_status=deliv_status,
+                    meta_error_code=err_code if err_code else None,
+                    meta_error_message=err_msg,
+                    message_content=f"Template: {gupshup_whatsapp_service.template_name} | Params: {params_repr}"
                 )
+                db.add(db_notif)
+                db.commit()
+
+                if is_success:
+                    logger.info(f"Gupshup WhatsApp notification submitted successfully for order {fresh.order_number} (MsgId: {msg_id})")
+                else:
+                    logger.warning(
+                        f"Gupshup WhatsApp notification failed for order {fresh.order_number}: {send_res.get('message')}"
+                    )
+        elif whatsapp_service.is_configured():
+            # Fallback to legacy Meta Direct Cloud API if configured
+            recipient_for_record = (
+                whatsapp_service.test_recipient
+                or (fresh.shop.user.phone if fresh.shop and fresh.shop.user else "Unknown")
+            )
+            existing_sent = db.query(Notification).filter(
+                Notification.order_number == fresh.order_number,
+                Notification.channel == "WhatsApp",
+                Notification.message_content.contains("Order Confirmation"),
+                Notification.status.in_(["Sent", "Delivered", "Read"])
+            ).first()
+
+            if existing_sent:
+                logger.info(f"WhatsApp confirmation already sent for order {fresh.order_number}. Skipping duplicate dispatch.")
+            else:
+                send_res = whatsapp_service.send_order_confirmation(fresh, fresh.items)
+                is_success = send_res.get("success", False)
+                notif_status = "Sent" if is_success else "Failed"
+                deliv_status = "Accepted" if is_success else "Failed"
+                meta_id = send_res.get("meta_message_id")
+                err_code = send_res.get("error_code")
+                err_msg = send_res.get("message") if not is_success else None
+
+                db_notif = Notification(
+                    recipient_phone=recipient_for_record,
+                    channel="WhatsApp",
+                    order_number=fresh.order_number,
+                    shop_name=fresh.shop.shop_name if fresh.shop else "N/A",
+                    total_bags=fresh.total_quantity_bags,
+                    total_quantity_kg=fresh.total_quantity_kg,
+                    status=notif_status,
+                    meta_message_id=meta_id,
+                    delivery_status=deliv_status,
+                    meta_error_code=str(err_code) if err_code else None,
+                    meta_error_message=err_msg,
+                    message_content=send_res.get("message_text", "")
+                )
+                db.add(db_notif)
+                db.commit()
+        else:
+            logger.info(f"Order {fresh.order_number} placed successfully. WhatsApp notification skipped (credentials not configured).")
     except Exception as e:
         db.rollback()
-        logger.error(f"Non-fatal error during WhatsApp order confirmation for order {fresh.order_number}: {type(e).__name__}")
+        logger.error(f"Non-fatal error during WhatsApp order notification for order {fresh.order_number}: {type(e).__name__}")
 
     return _build_order_out(fresh)
 
