@@ -248,6 +248,8 @@ def root():
 
 
 @app.get("/healthz", tags=["System"])
+@app.get("/api/health", tags=["System"])
+@app.get("/api/v1/health", tags=["System"])
 def healthz(response: Response):
     """
     Database readiness probe for Cloud Run and container orchestration.
