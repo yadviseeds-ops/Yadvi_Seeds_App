@@ -211,6 +211,13 @@ def on_startup():
     except Exception as e:
         logger.warning(f"Firebase Admin SDK initialization skipped or non-fatal error: {e}")
 
+    logger.info("Recovering any pending or interrupted Gupshup WhatsApp outbox records...")
+    try:
+        from app.services.whatsapp_service import run_outbox_worker_safe
+        run_outbox_worker_safe()
+    except Exception as e:
+        logger.warning(f"Initial WhatsApp outbox sweep skipped or non-fatal error: {e}")
+
     logger.info("Yadvi Hybrid Seeds Backend API is ready to accept connections!")
 
 

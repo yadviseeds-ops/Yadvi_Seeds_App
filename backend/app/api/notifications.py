@@ -243,6 +243,15 @@ async def process_whatsapp_webhook(
     return {"status": "ok"}
 
 
+@router.get(
+    "/gupshup-webhook",
+    summary="Gupshup Webhook Verification Probe",
+    description="Endpoint accessibility check for Gupshup webhook registration."
+)
+def verify_gupshup_webhook():
+    return {"status": "ok", "service": "Gupshup WhatsApp Webhook", "timestamp": datetime.utcnow().isoformat()}
+
+
 @router.post(
     "/gupshup-webhook",
     summary="Gupshup WhatsApp Status & Delivery Callback",
@@ -257,22 +266,40 @@ async def process_gupshup_webhook(
     Receives DLR (delivery receipt) and event callbacks from Gupshup.
     Guarantees:
     - Safe non-blocking execution.
+    - Verified secret check if GUPSHUP_WEBHOOK_SECRET is configured (via query token, secret param, or header).
     - Matches Gupshup messageId / gsId / id to Notification.meta_message_id.
     - Enforces monotonic status transitions.
+    - Handles duplicate callbacks idempotently.
     - Records delivered_at, read_at, error codes and sanitized reasons.
-    - Returns HTTP 200 immediately.
+    - Always responds promptly with HTTP 200.
     """
     raw_body = await request.body()
     secret = getattr(settings, "GUPSHUP_WEBHOOK_SECRET", None)
     if secret:
-        # Validate HMAC-SHA256 signature if webhook secret is configured
-        if not x_gupshup_signature:
-            logger.warning("Missing X-Gupshup-Signature header on webhook callback.")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing signature header")
-        expected_sig = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
-        if not secrets.compare_digest(x_gupshup_signature.strip(), expected_sig):
-            logger.warning("Invalid X-Gupshup-Signature on webhook callback.")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
+        # Check query param token/secret, or header token/signature
+        provided_token = (
+            request.query_params.get("secret")
+            or request.query_params.get("token")
+            or request.headers.get("token")
+            or request.headers.get("Authorization")
+            or x_gupshup_signature
+        )
+
+        valid = False
+        if provided_token:
+            # Check direct token match
+            if secrets.compare_digest(provided_token.strip(), secret):
+                valid = True
+            # Or HMAC SHA-256 signature if provided
+            else:
+                expected_sig = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+                clean_sig = provided_token.replace("sha256=", "").strip()
+                if secrets.compare_digest(clean_sig, expected_sig):
+                    valid = True
+
+        if not valid:
+            logger.warning("Unauthorized Gupshup webhook callback attempt: secret or signature mismatch.")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook authentication")
 
     try:
         data = json.loads(raw_body.decode("utf-8") if raw_body else "{}")
@@ -280,7 +307,58 @@ async def process_gupshup_webhook(
         return {"status": "ignored", "reason": "invalid_json"}
 
     result = gupshup_whatsapp_service.process_webhook_event(data, db)
-    return result
+    return {"status": "ok", "result": result}
+
+
+@router.post(
+    "/gupshup/process-outbox",
+    summary="Process Pending Gupshup WhatsApp Outbox Queue",
+    description="Manually triggers processing of pending and retry outbox messages with exponential backoff. Admin only."
+)
+def process_gupshup_outbox(
+    max_batch: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["administrator"]))
+):
+    """
+    Triggers the outbox worker loop to dispatch pending notifications to Gupshup.
+    Admin restricted.
+    """
+    summary = gupshup_whatsapp_service.process_outbox_queue(db=db, max_batch=max_batch)
+    return {"success": True, "summary": summary}
+
+
+@router.get(
+    "/gupshup/outbox-status",
+    summary="Inspect Gupshup WhatsApp Outbox Queue Status",
+    description="Returns aggregate counts of pending, processing, dispatched, failed, and retrying outbox messages. Admin only."
+)
+def get_gupshup_outbox_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["administrator"]))
+):
+    """
+    Returns outbox queue metrics. Admin restricted.
+    """
+    from app.models.all_models import WhatsAppOutbox
+    from sqlalchemy import func
+
+    status_counts = (
+        db.query(WhatsAppOutbox.status, func.count(WhatsAppOutbox.id))
+        .group_by(WhatsAppOutbox.status)
+        .all()
+    )
+    counts_dict = {st: count for st, count in status_counts}
+    total = sum(counts_dict.values())
+
+    return {
+        "total_outbox_records": total,
+        "pending": counts_dict.get("Pending", 0),
+        "processing": counts_dict.get("Processing", 0),
+        "retry": counts_dict.get("Retry", 0),
+        "dispatched": counts_dict.get("Dispatched", 0),
+        "failed": counts_dict.get("Failed", 0),
+    }
 
 
 @router.get(

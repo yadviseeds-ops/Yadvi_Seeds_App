@@ -144,6 +144,7 @@ class Order(Base):
     assigned_executive = relationship("FieldExecutive", back_populates="orders_collected")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     shipment = relationship("Shipment", back_populates="order", uselist=False)
+    outbox_item = relationship("WhatsAppOutbox", back_populates="order", uselist=False, cascade="all, delete-orphan")
 
 class OrderItem(Base):
     __tablename__ = "order_items"
@@ -235,6 +236,27 @@ class Notification(Base):
     read_at = Column(DateTime, nullable=True)
     message_content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class WhatsAppOutbox(Base):
+    __tablename__ = "whatsapp_outbox"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, unique=True, index=True)
+    order_number = Column(String(50), nullable=False, index=True)
+    recipient_phone = Column(String(20), nullable=False)
+    template_id = Column(String(100), nullable=True)
+    template_name = Column(String(100), nullable=False)
+    payload_json = Column(Text, nullable=False)
+    status = Column(String(50), default="Pending", index=True)  # Pending, Processing, Dispatched, Failed, Retry
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    next_retry_at = Column(DateTime, default=datetime.utcnow, index=True)
+    locked_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    order = relationship("Order", back_populates="outbox_item")
 
 class FCMDeviceToken(Base):
     __tablename__ = "fcm_device_tokens"

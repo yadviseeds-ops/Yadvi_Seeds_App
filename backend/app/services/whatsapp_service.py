@@ -174,8 +174,21 @@ class GupshupWhatsAppService:
         self._template_lang = val
 
     def is_configured(self) -> bool:
-        """Returns True if the minimum required Gupshup credentials and numbers are configured."""
-        return bool(self.api_key and self.source_number and self.admin_recipient)
+        """
+        Returns True only if all required parameters for live Gupshup API dispatch are present:
+        - api_key
+        - source_number
+        - admin_recipient
+        - app_name (required for src.name in form payload)
+        - template_id (approved template UUID; human-readable template name is not valid)
+        """
+        return bool(
+            self.api_key
+            and self.source_number
+            and self.admin_recipient
+            and self.app_name
+            and self.template_id
+        )
 
     def _get_template_msg_url(self) -> str:
         return f"{self.base_url}/wa/api/v1/template/msg"
@@ -344,11 +357,20 @@ class GupshupWhatsAppService:
         Never crashes on failure; returns structured result.
         """
         if not self.is_configured():
-            logger.warning("Gupshup WhatsApp integration is not configured. Missing API key, sender, or admin recipient.")
+            if not self.api_key or not self.source_number or not self.admin_recipient:
+                msg = "Gupshup WhatsApp integration is not configured. Missing required credentials or phone numbers."
+            elif not self.app_name:
+                msg = "GUPSHUP_APP_NAME is required for live Gupshup API dispatch (src.name)."
+            elif not self.template_id:
+                msg = "GUPSHUP_TEMPLATE_ID (approved template UUID) is required. Human-readable template name cannot be used as template ID."
+            else:
+                msg = "Gupshup WhatsApp integration is not configured."
+
+            logger.warning(f"Gupshup WhatsApp dispatch aborted: {msg}")
             return {
                 "success": False,
                 "status": "unconfigured",
-                "message": "Gupshup WhatsApp integration is not configured. Missing required credentials or phone numbers.",
+                "message": msg,
                 "message_id": None,
                 "http_status": None,
                 "recipient_masked": mask_phone_number(self.admin_recipient),
@@ -372,23 +394,20 @@ class GupshupWhatsAppService:
 
         params = self.format_template_variables(order, items)
 
-        # Template ID UUID is required by Gupshup /wa/api/v1/template/msg
-        # If template_id is not set, use template_name as fallback identifier
-        template_identifier = self.template_id or self.template_name
-
+        # Strict: Gupshup /wa/api/v1/template/msg requires the approved template UUID
         template_obj = {
-            "id": template_identifier,
+            "id": self.template_id,
             "params": params,
         }
 
+        # Strict: src.name is required by Gupshup API for live WhatsApp dispatch
         form_payload = {
             "channel": "whatsapp",
             "source": source,
             "destination": destination,
+            "src.name": self.app_name,
             "template": json.dumps(template_obj),
         }
-        if self.app_name:
-            form_payload["src.name"] = self.app_name
 
         headers = {
             "apikey": self.api_key,
@@ -590,12 +609,388 @@ class GupshupWhatsAppService:
                 db.rollback()
                 logger.error(f"DB error updating status for notification {notif.id}: {e}")
                 return {"status": "db_error"}
-        else:
+        elif new_rank == current_rank:
             logger.info(
-                f"Skipped duplicate or lower precedence status '{status_raw}' for notification {notif.id} "
+                f"Skipped duplicate status '{status_raw}' for notification {notif.id} "
                 f"(current: {notif.delivery_status})"
             )
-            return {"status": "skipped_lower_rank"}
+            return {"status": "duplicate", "current_status": notif.delivery_status}
+        else:
+            logger.info(
+                f"Skipped lower precedence status '{status_raw}' for notification {notif.id} "
+                f"(current: {notif.delivery_status})"
+            )
+            return {"status": "skipped_lower_rank", "current_status": notif.delivery_status}
+
+    def enqueue_order_notification(self, db, order, items: list):
+        """
+        Creates a durable database-backed WhatsAppOutbox record committed in the same transaction as the Order.
+        Guarantees idempotency via unique order_id constraint and existing dispatch checks.
+        Does not perform synchronous HTTP calls.
+        """
+        from app.models.all_models import WhatsAppOutbox, Notification
+
+        # Check if already in outbox
+        existing_outbox = db.query(WhatsAppOutbox).filter(WhatsAppOutbox.order_id == order.id).first()
+        if existing_outbox:
+            return existing_outbox
+
+        # Check if already dispatched in Notification table
+        existing_notif = db.query(Notification).filter(
+            Notification.order_number == order.order_number,
+            Notification.channel == "WhatsApp",
+            Notification.message_content.contains(self.template_name),
+            Notification.status.in_(["Sent", "Delivered", "Read", "Submitted"]),
+        ).first()
+        if existing_notif:
+            logger.info(f"Notification already recorded for order {order.order_number}. Skipping outbox enqueue.")
+            return None
+
+        params = self.format_template_variables(order, items)
+        payload_dict = {
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "params": params,
+            "shop_name": order.shop.shop_name if getattr(order, "shop", None) else "N/A",
+            "total_bags": getattr(order, "total_quantity_bags", 0),
+            "total_quantity_kg": getattr(order, "total_quantity_kg", 0.0),
+            "recipient_phone": self.admin_recipient or "Admin",
+        }
+
+        outbox_entry = WhatsAppOutbox(
+            order_id=order.id,
+            order_number=order.order_number,
+            recipient_phone=sanitize_phone_number(self.admin_recipient) or "Admin",
+            template_id=self.template_id,
+            template_name=self.template_name,
+            payload_json=json.dumps(payload_dict),
+            status="Pending",
+            retry_count=0,
+            max_retries=3,
+            next_retry_at=datetime.utcnow(),
+        )
+        db.add(outbox_entry)
+        logger.info(f"Enqueued durable WhatsApp outbox for order {order.order_number} to Admin.")
+        return outbox_entry
+
+    def send_from_outbox(self, outbox) -> Dict[str, Any]:
+        """
+        Sends a WhatsApp notification to Admin using parameters stored in a WhatsAppOutbox record.
+        Never raises exceptions; returns structured result dict.
+        """
+        if not self.is_configured():
+            if not self.api_key or not self.source_number or not self.admin_recipient:
+                msg = "Gupshup WhatsApp integration is not configured. Missing required credentials or phone numbers."
+            elif not self.app_name:
+                msg = "GUPSHUP_APP_NAME is required for live Gupshup API dispatch (src.name)."
+            elif not self.template_id:
+                msg = "GUPSHUP_TEMPLATE_ID (approved template UUID) is required. Human-readable template name cannot be used as template ID."
+            else:
+                msg = "Gupshup WhatsApp integration is not configured."
+
+            logger.warning(f"Gupshup outbox dispatch aborted for order {outbox.order_number}: {msg}")
+            return {
+                "success": False,
+                "status": "unconfigured",
+                "message": msg,
+                "message_id": None,
+                "http_status": None,
+                "recipient_masked": mask_phone_number(self.admin_recipient),
+            }
+
+        try:
+            data = json.loads(outbox.payload_json)
+        except Exception as e:
+            return {
+                "success": False,
+                "status": "invalid_payload",
+                "message": f"Malformed outbox payload JSON: {e}",
+                "message_id": None,
+                "http_status": None,
+                "recipient_masked": mask_phone_number(self.admin_recipient),
+            }
+
+        params = data.get("params", [])
+        source = sanitize_phone_number(self.source_number)
+        destination = sanitize_phone_number(self.admin_recipient)
+        masked_dest = mask_phone_number(destination)
+        masked_src = mask_phone_number(source)
+
+        if not source or not destination:
+            return {
+                "success": False,
+                "status": "validation_error",
+                "message": "Invalid source or destination phone number format.",
+                "message_id": None,
+                "http_status": None,
+                "recipient_masked": masked_dest,
+            }
+
+        template_obj = {
+            "id": self.template_id,
+            "params": params,
+        }
+        form_payload = {
+            "channel": "whatsapp",
+            "source": source,
+            "destination": destination,
+            "src.name": self.app_name,
+            "template": json.dumps(template_obj),
+        }
+        headers = {
+            "apikey": self.api_key,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        url = self._get_template_msg_url()
+
+        logger.info(
+            f"Dispatching Gupshup WhatsApp notification from outbox #{outbox.id} for order {outbox.order_number} "
+            f"from {masked_src} to Admin {masked_dest}"
+        )
+
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                res = client.post(url, data=form_payload, headers=headers)
+                http_status = res.status_code
+                try:
+                    res_data = res.json()
+                except Exception:
+                    res_data = {"raw": res.text}
+
+                res_status = res_data.get("status", "").lower()
+                message_id = res_data.get("messageId") or res_data.get("id")
+
+                if http_status in (200, 202) and res_status in ("submitted", "success"):
+                    logger.info(f"Gupshup accepted outbox notification for {outbox.order_number}. MsgId: {message_id}")
+                    return {
+                        "success": True,
+                        "status": "submitted",
+                        "message": "WhatsApp notification submitted to Gupshup queue.",
+                        "message_id": message_id,
+                        "http_status": http_status,
+                        "recipient_masked": masked_dest,
+                        "params": params,
+                    }
+                else:
+                    err_msg = res_data.get("message") or res_data.get("error") or "Unknown Gupshup rejection"
+                    err_code = res_data.get("code")
+                    logger.warning(
+                        f"Gupshup rejected outbox notification for {outbox.order_number}: "
+                        f"status={res_status}, code={err_code}, message={err_msg}"
+                    )
+                    return {
+                        "success": False,
+                        "status": "rejected",
+                        "message": f"Gupshup rejected: {err_msg}",
+                        "error_code": err_code,
+                        "message_id": message_id,
+                        "http_status": http_status,
+                        "recipient_masked": masked_dest,
+                        "params": params,
+                    }
+        except httpx.TimeoutException:
+            logger.error(f"Timeout while contacting Gupshup WhatsApp API for outbox #{outbox.id}")
+            return {
+                "success": False,
+                "status": "network_timeout",
+                "message": "Connection to Gupshup WhatsApp API timed out.",
+                "message_id": None,
+                "http_status": None,
+                "recipient_masked": masked_dest,
+                "params": params,
+            }
+        except httpx.RequestError as exc:
+            logger.error(f"Network error while contacting Gupshup WhatsApp API for outbox #{outbox.id}: {type(exc).__name__}")
+            return {
+                "success": False,
+                "status": "network_error",
+                "message": f"Network error while connecting to Gupshup WhatsApp API: {type(exc).__name__}",
+                "message_id": None,
+                "http_status": None,
+                "recipient_masked": masked_dest,
+                "params": params,
+            }
+        except Exception as exc:
+            logger.error(f"Unexpected error in Gupshup outbox dispatch #{outbox.id}: {type(exc).__name__}")
+            return {
+                "success": False,
+                "status": "internal_error",
+                "message": f"Unexpected error during WhatsApp notification: {str(exc)}",
+                "message_id": None,
+                "http_status": None,
+                "recipient_masked": masked_dest,
+                "params": params,
+            }
+
+    def process_outbox_queue(self, db, max_batch: int = 10) -> Dict[str, Any]:
+        """
+        Processes pending and retry WhatsAppOutbox items with bounded retries, exponential backoff,
+        and idempotency protection.
+        Recovers stale/crashed processing locks older than 5 minutes.
+        """
+        from app.models.all_models import WhatsAppOutbox, Notification
+        from sqlalchemy import or_, and_
+
+        now = datetime.utcnow()
+        stale_threshold = now - timedelta(minutes=5)
+
+        candidates = (
+            db.query(WhatsAppOutbox)
+            .filter(
+                or_(
+                    and_(
+                        WhatsAppOutbox.status.in_(["Pending", "Retry"]),
+                        WhatsAppOutbox.next_retry_at <= now,
+                    ),
+                    and_(
+                        WhatsAppOutbox.status == "Processing",
+                        WhatsAppOutbox.locked_at <= stale_threshold,
+                    ),
+                )
+            )
+            .order_by(WhatsAppOutbox.id.asc())
+            .limit(max_batch)
+            .all()
+        )
+
+        summary = {
+            "total_candidates": len(candidates),
+            "dispatched": 0,
+            "failed": 0,
+            "retried": 0,
+            "skipped_duplicate": 0,
+        }
+
+        for item in candidates:
+            try:
+                item.status = "Processing"
+                item.locked_at = datetime.utcnow()
+                db.commit()
+                db.refresh(item)
+
+                # Idempotency check: has this order already been dispatched?
+                existing_sent = db.query(Notification).filter(
+                    Notification.order_number == item.order_number,
+                    Notification.channel == "WhatsApp",
+                    Notification.message_content.contains(item.template_name),
+                    Notification.status.in_(["Sent", "Delivered", "Read", "Submitted"]),
+                ).first()
+
+                if existing_sent:
+                    logger.info(f"Outbox #{item.id} (Order {item.order_number}) already has dispatched notification. Marking Dispatched.")
+                    item.status = "Dispatched"
+                    item.locked_at = None
+                    item.last_error = None
+                    db.commit()
+                    summary["skipped_duplicate"] += 1
+                    continue
+
+                res = self.send_from_outbox(item)
+                is_success = res.get("success", False)
+
+                if is_success:
+                    item.status = "Dispatched"
+                    item.locked_at = None
+                    item.last_error = None
+                    msg_id = res.get("message_id")
+                    params_repr = json.dumps(res.get("params", []))
+
+                    payload_data = {}
+                    try:
+                        payload_data = json.loads(item.payload_json)
+                    except Exception:
+                        pass
+
+                    db_notif = Notification(
+                        recipient_phone=item.recipient_phone,
+                        channel="WhatsApp",
+                        order_number=item.order_number,
+                        shop_name=payload_data.get("shop_name", "N/A"),
+                        total_bags=payload_data.get("total_bags"),
+                        total_quantity_kg=payload_data.get("total_quantity_kg"),
+                        status="Sent",
+                        meta_message_id=msg_id,
+                        delivery_status="Submitted",
+                        meta_error_code=None,
+                        meta_error_message=None,
+                        message_content=f"Template: {item.template_name} | Params: {params_repr}",
+                    )
+                    db.add(db_notif)
+                    db.commit()
+                    summary["dispatched"] += 1
+                    logger.info(f"Outbox #{item.id} successfully dispatched (MsgId: {msg_id})")
+                else:
+                    item.retry_count += 1
+                    err_msg = res.get("message") or "Unknown error"
+                    err_code = str(res.get("error_code") or "")
+                    item.last_error = f"{res.get('status')}: {err_msg}"
+                    item.locked_at = None
+
+                    if item.retry_count >= item.max_retries:
+                        item.status = "Failed"
+                        payload_data = {}
+                        try:
+                            payload_data = json.loads(item.payload_json)
+                        except Exception:
+                            pass
+
+                        db_notif = Notification(
+                            recipient_phone=item.recipient_phone,
+                            channel="WhatsApp",
+                            order_number=item.order_number,
+                            shop_name=payload_data.get("shop_name", "N/A"),
+                            total_bags=payload_data.get("total_bags"),
+                            total_quantity_kg=payload_data.get("total_quantity_kg"),
+                            status="Failed",
+                            meta_message_id=None,
+                            delivery_status="Failed",
+                            meta_error_code=err_code if err_code else None,
+                            meta_error_message=item.last_error,
+                            message_content=f"Template: {item.template_name} | Outbox #{item.id} reached max retries ({item.max_retries})",
+                        )
+                        db.add(db_notif)
+                        db.commit()
+                        summary["failed"] += 1
+                        logger.warning(f"Outbox #{item.id} marked Failed after {item.retry_count} attempts.")
+                    else:
+                        item.status = "Retry"
+                        backoff_sec = (2 ** item.retry_count) * 5
+                        item.next_retry_at = datetime.utcnow() + timedelta(seconds=backoff_sec)
+                        db.commit()
+                        summary["retried"] += 1
+                        logger.info(f"Outbox #{item.id} scheduled for retry #{item.retry_count} in {backoff_sec}s.")
+
+            except Exception as exc:
+                db.rollback()
+                logger.error(f"Error processing outbox item #{item.id}: {exc}")
+                try:
+                    item.locked_at = None
+                    item.retry_count += 1
+                    item.status = "Retry" if item.retry_count < item.max_retries else "Failed"
+                    item.last_error = f"Unhandled worker exception: {type(exc).__name__}"
+                    db.commit()
+                except Exception:
+                    db.rollback()
+
+        return summary
 
 
 gupshup_whatsapp_service = GupshupWhatsAppService()
+
+
+def run_outbox_worker_safe() -> Dict[str, Any]:
+    """
+    Standalone safe worker function suitable for FastAPI BackgroundTasks, thread execution,
+    or startup hooks.
+    Creates a dedicated DB session and closes it cleanly.
+    """
+    from app.core.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return gupshup_whatsapp_service.process_outbox_queue(db=db)
+    except Exception as e:
+        logger.error(f"Background outbox worker error: {e}")
+        return {"error": str(e)}
+    finally:
+        db.close()
+

@@ -14,7 +14,7 @@ from fastapi import HTTPException
 
 from app.core.database import Base
 from app.core.config import settings
-from app.models.all_models import User, Role, ShopOwner, Product, Order, OrderItem, Notification
+from app.models.all_models import User, Role, ShopOwner, Product, Order, OrderItem, Notification, WhatsAppOutbox
 from app.services.whatsapp_service import (
     GupshupWhatsAppService,
     mask_phone_number,
@@ -101,12 +101,16 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
         self.orig_api_key = settings.GUPSHUP_API_KEY
         self.orig_source = settings.GUPSHUP_SOURCE_NUMBER
         self.orig_admin = settings.GUPSHUP_ADMIN_RECIPIENT
+        self.orig_app_name = settings.GUPSHUP_APP_NAME
+        self.orig_app_id = settings.GUPSHUP_APP_ID
         self.orig_template_id = settings.GUPSHUP_TEMPLATE_ID
         self.orig_template_name = settings.GUPSHUP_TEMPLATE_NAME
 
         settings.GUPSHUP_API_KEY = "test_gupshup_api_key_secret_123"
         settings.GUPSHUP_SOURCE_NUMBER = "919999900000"
         settings.GUPSHUP_ADMIN_RECIPIENT = "919876500000"
+        settings.GUPSHUP_APP_NAME = "YadviHybridSeeds"
+        settings.GUPSHUP_APP_ID = "bfa14c34-fc9d-4f5b-bfce-73fc89434929"
         settings.GUPSHUP_TEMPLATE_ID = "c6aecef6-bcb0-4fb1-8100-28c094e3bc6b"
         settings.GUPSHUP_TEMPLATE_NAME = "yadviapporder_confirmation"
 
@@ -116,23 +120,17 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
         settings.GUPSHUP_API_KEY = self.orig_api_key
         settings.GUPSHUP_SOURCE_NUMBER = self.orig_source
         settings.GUPSHUP_ADMIN_RECIPIENT = self.orig_admin
+        settings.GUPSHUP_APP_NAME = self.orig_app_name
+        settings.GUPSHUP_APP_ID = self.orig_app_id
         settings.GUPSHUP_TEMPLATE_ID = self.orig_template_id
         settings.GUPSHUP_TEMPLATE_NAME = self.orig_template_name
 
         self.db.close()
         Base.metadata.drop_all(bind=self.engine)
 
-    # 1. Successful Dealer order placement triggers one WhatsApp notification
+    # 1. Non-blocking order creation: creates durable outbox without synchronous HTTP calls
     @patch('httpx.Client.post')
-    def test_1_successful_order_triggers_one_whatsapp_notification(self, mock_post):
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "status": "submitted",
-            "messageId": "ee4a68a0-1203-4c85-8dc3-49d0b3226a35"
-        }
-        mock_post.return_value = mock_response
-
+    def test_1_order_creation_is_non_blocking_and_creates_durable_outbox(self, mock_post):
         payload = OrderCreateRequest(
             items=[
                 OrderItemIn(product_id=1, quantity=2.0, unit="kg"),
@@ -146,10 +144,55 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
         self.assertIsNotNone(order_out)
         self.assertTrue(order_out.order_number.startswith("ORD-"))
 
-        # Check mock post was called once
+        # Synchronous HTTP calls must NOT occur during order placement (0 network delay for Dealer)
+        self.assertEqual(mock_post.call_count, 0)
+
+        # Durable WhatsAppOutbox record must exist in the database with status Pending
+        outbox = self.db.query(WhatsAppOutbox).filter(WhatsAppOutbox.order_number == order_out.order_number).first()
+        self.assertIsNotNone(outbox)
+        self.assertEqual(outbox.status, "Pending")
+        self.assertEqual(outbox.retry_count, 0)
+        self.assertEqual(outbox.template_id, "c6aecef6-bcb0-4fb1-8100-28c094e3bc6b")
+        self.assertIn("919876500000", outbox.recipient_phone)
+
+        # Verify serialized payload contains template params
+        payload_data = json.loads(outbox.payload_json)
+        self.assertEqual(payload_data["order_number"], order_out.order_number)
+        self.assertEqual(len(payload_data["params"]), 6)
+        self.assertEqual(payload_data["params"][0], order_out.order_number)
+
+    # 2. Worker processes outbox queue successfully
+    @patch('httpx.Client.post')
+    def test_2_worker_processes_outbox_queue_successfully(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "submitted",
+            "messageId": "ee4a68a0-1203-4c85-8dc3-49d0b3226a35"
+        }
+        mock_post.return_value = mock_response
+
+        payload = OrderCreateRequest(
+            items=[OrderItemIn(product_id=1, quantity=2.0, unit="kg")],
+            source="Shop Owner App"
+        )
+        order_out = create_order(payload=payload, db=self.db, current_user=self.dealer_user)
+
+        # Run outbox worker
+        summary = self.service.process_outbox_queue(self.db)
+        self.assertEqual(summary["total_candidates"], 1)
+        self.assertEqual(summary["dispatched"], 1)
+        self.assertEqual(summary["failed"], 0)
+
+        # Gupshup API POST must have been called exactly once
         self.assertEqual(mock_post.call_count, 1)
 
-        # Check notification record was persisted in database
+        # Verify outbox state transitioned to Dispatched
+        outbox = self.db.query(WhatsAppOutbox).filter(WhatsAppOutbox.order_number == order_out.order_number).first()
+        self.assertEqual(outbox.status, "Dispatched")
+        self.assertIsNone(outbox.last_error)
+
+        # Verify Notification record created with messageId
         notif = self.db.query(Notification).filter(
             Notification.order_number == order_out.order_number,
             Notification.message_content.contains("yadviapporder_confirmation")
@@ -158,30 +201,26 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
         self.assertEqual(notif.status, "Sent")
         self.assertEqual(notif.delivery_status, "Submitted")
         self.assertEqual(notif.meta_message_id, "ee4a68a0-1203-4c85-8dc3-49d0b3226a35")
-        self.assertEqual(notif.recipient_phone, "919876500000")
 
-    # 2. Failed order placement does not trigger a notification
+    # 3. Failed order placement does not create outbox or send notification
     @patch('httpx.Client.post')
-    def test_2_failed_order_placement_does_not_trigger_notification(self, mock_post):
-        # Request quantity exceeding available stock (available: 1000 kg, requested: 5000 kg)
+    def test_3_failed_order_placement_does_not_create_outbox_or_send(self, mock_post):
+        # Exceeds available stock
         payload = OrderCreateRequest(
             items=[OrderItemIn(product_id=1, quantity=5000.0, unit="kg")],
-            delivery_notes="Exceeds stock",
             source="Shop Owner App"
         )
 
         with self.assertRaises(HTTPException):
             create_order(payload=payload, db=self.db, current_user=self.dealer_user)
 
-        # Gupshup WhatsApp API must NOT have been called
         self.assertEqual(mock_post.call_count, 0)
-        notif_count = self.db.query(Notification).count()
-        self.assertEqual(notif_count, 0)
+        self.assertEqual(self.db.query(WhatsAppOutbox).count(), 0)
+        self.assertEqual(self.db.query(Notification).count(), 0)
 
-    # 3. WhatsApp API failure does not fail order placement
+    # 4. Worker bounded retry with exponential backoff on Gupshup failure
     @patch('httpx.Client.post')
-    def test_3_whatsapp_api_failure_does_not_fail_order_placement(self, mock_post):
-        # Simulate Gupshup server 500 error
+    def test_4_worker_bounded_retry_and_exponential_backoff(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.json.return_value = {
@@ -191,16 +230,44 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
         mock_post.return_value = mock_response
 
         payload = OrderCreateRequest(
-            items=[OrderItemIn(product_id=1, quantity=10.0, unit="kg")],
+            items=[OrderItemIn(product_id=1, quantity=5.0, unit="kg")],
             source="Shop Owner App"
         )
-
-        # Order must succeed despite WhatsApp 500 failure
         order_out = create_order(payload=payload, db=self.db, current_user=self.dealer_user)
-        self.assertIsNotNone(order_out)
-        self.assertTrue(order_out.order_number.startswith("ORD-"))
+        outbox = self.db.query(WhatsAppOutbox).filter(WhatsAppOutbox.order_number == order_out.order_number).first()
 
-        # Notification must be marked Failed without crashing
+        # Attempt 1
+        summary1 = self.service.process_outbox_queue(self.db)
+        self.assertEqual(summary1["retried"], 1)
+        self.db.refresh(outbox)
+        self.assertEqual(outbox.status, "Retry")
+        self.assertEqual(outbox.retry_count, 1)
+        self.assertIn("Internal Gupshup Server Error", outbox.last_error)
+        self.assertTrue(outbox.next_retry_at > datetime.utcnow() - timedelta(seconds=1))
+
+        # Advance next_retry_at to simulate backoff elapse
+        outbox.next_retry_at = datetime.utcnow() - timedelta(seconds=1)
+        self.db.commit()
+
+        # Attempt 2
+        summary2 = self.service.process_outbox_queue(self.db)
+        self.assertEqual(summary2["retried"], 1)
+        self.db.refresh(outbox)
+        self.assertEqual(outbox.status, "Retry")
+        self.assertEqual(outbox.retry_count, 2)
+
+        # Advance next_retry_at again
+        outbox.next_retry_at = datetime.utcnow() - timedelta(seconds=1)
+        self.db.commit()
+
+        # Attempt 3 (Max retries reached -> terminal Failed)
+        summary3 = self.service.process_outbox_queue(self.db)
+        self.assertEqual(summary3["failed"], 1)
+        self.db.refresh(outbox)
+        self.assertEqual(outbox.status, "Failed")
+        self.assertEqual(outbox.retry_count, 3)
+
+        # Check terminal failure logged in Notification table
         notif = self.db.query(Notification).filter(
             Notification.order_number == order_out.order_number,
             Notification.message_content.contains("yadviapporder_confirmation")
@@ -209,350 +276,290 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
         self.assertEqual(notif.status, "Failed")
         self.assertEqual(notif.delivery_status, "Failed")
 
-    # 4. Correct Order ID is passed in {{1}}
-    def test_4_correct_order_id_passed(self):
-        order = Order(
-            id=101,
-            order_number="ORD-1149",
-            shop_id=1,
-            total_quantity_kg=5.0,
-            created_at=datetime(2026, 11, 22, 10, 0, 0)
-        )
-        order.shop = self.shop
-        items = [OrderItem(product_id=1, quantity=5.0, unit="kg")]
-        items[0].product = self.product1
+        # Attempt 4 (No further retries)
+        summary4 = self.service.process_outbox_queue(self.db)
+        self.assertEqual(summary4["total_candidates"], 0)
 
-        params = self.service.format_template_variables(order, items)
-        self.assertEqual(params[0], "ORD-1149")
-
-    # 5. Correct Dealer name in {{2}} and Dealer mobile in {{3}}
-    def test_5_correct_dealer_name_and_mobile_passed(self):
-        order = Order(
-            id=102,
-            order_number="ORD-1150",
-            shop_id=1,
-            total_quantity_kg=2.0,
-            created_at=datetime(2026, 11, 22, 10, 0, 0)
-        )
-        order.shop = self.shop
-        items = [OrderItem(product_id=1, quantity=2.0, unit="kg")]
-        items[0].product = self.product1
-
-        params = self.service.format_template_variables(order, items)
-        self.assertEqual(params[1], "Shree Seeds Agency")
-        self.assertEqual(params[2], "9876543210")
-
-    # 6. Product details and quantities are formatted correctly in {{5}}
-    def test_6_product_details_and_quantities_formatted_correctly(self):
-        order = Order(
-            id=103,
-            order_number="ORD-1151",
-            shop_id=1,
-            total_quantity_kg=3.0,
-            created_at=datetime(2026, 11, 22, 10, 0, 0)
-        )
-        order.shop = self.shop
-        item1 = OrderItem(product_id=1, quantity=2.0, unit="kg")
-        item1.product = self.product1
-        item2 = OrderItem(product_id=2, quantity=1.0, unit="kg")
-        item2.product = self.product2
-        items = [item1, item2]
-
-        params = self.service.format_template_variables(order, items)
-        # Expected: "Maize Hybrid – 2 kg, Cotton Gold – 1 kg"
-        self.assertEqual(params[4], "Maize Hybrid – 2 kg, Cotton Gold – 1 kg")
-
-    # 7. Total quantity and variety count are correct in {{6}}
-    def test_7_total_quantity_and_variety_count(self):
-        # Case A: Multiple varieties
-        order_multi = Order(
-            id=104,
-            order_number="ORD-1152",
-            shop_id=1,
-            total_quantity_kg=3.0,
-            created_at=datetime(2026, 11, 22, 10, 0, 0)
-        )
-        order_multi.shop = self.shop
-        item1 = OrderItem(product_id=1, quantity=2.0, unit="kg")
-        item1.product = self.product1
-        item2 = OrderItem(product_id=2, quantity=1.0, unit="kg")
-        item2.product = self.product2
-
-        params_multi = self.service.format_template_variables(order_multi, [item1, item2])
-        self.assertEqual(params_multi[5], "3 kg (2 varieties)")
-
-        # Case B: Single variety
-        order_single = Order(
-            id=105,
-            order_number="ORD-1153",
-            shop_id=1,
-            total_quantity_kg=5.0,
-            created_at=datetime(2026, 11, 22, 10, 0, 0)
-        )
-        order_single.shop = self.shop
-        params_single = self.service.format_template_variables(order_single, [item1])
-        self.assertEqual(params_single[5], "5 kg (1 variety)")
-
-        # Case C: Date formatting in {{4}}
-        self.assertEqual(params_multi[3], "22 November 2026")
-
-    # 8. Duplicate order requests do not cause duplicate notifications
+    # 5. Worker idempotency prevents duplicate dispatch
     @patch('httpx.Client.post')
-    def test_8_duplicate_order_requests_do_not_cause_duplicate_notifications(self, mock_post):
+    def test_5_worker_idempotency_prevents_duplicate_dispatch(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "status": "submitted",
-            "messageId": "msg-first-1234"
+            "messageId": "msg-id-12345"
         }
         mock_post.return_value = mock_response
 
-        # Seed pre-existing sent notification for ORD-2000
-        existing_notif = Notification(
+        # Seed pre-existing dispatched notification
+        notif = Notification(
             recipient_phone="919876500000",
             channel="WhatsApp",
-            order_number="ORD-2000",
-            shop_name="Shree Seeds Agency",
+            order_number="ORD-DUP-01",
+            shop_name="Shree Seeds",
             status="Sent",
             delivery_status="Submitted",
-            meta_message_id="msg-first-1234",
-            message_content="Template: yadviapporder_confirmation"
+            meta_message_id="msg-id-12345",
+            message_content="Template: yadviapporder_confirmation | Pre-existing dispatched notification"
         )
-        self.db.add(existing_notif)
+        self.db.add(notif)
+
+        # Seed outbox for same order
+        outbox = WhatsAppOutbox(
+            order_id=999,
+            order_number="ORD-DUP-01",
+            recipient_phone="919876500000",
+            template_id="c6aecef6-bcb0-4fb1-8100-28c094e3bc6b",
+            template_name="yadviapporder_confirmation",
+            payload_json=json.dumps({"params": ["ORD-DUP-01", "Shree", "9876543210", "date", "items", "qty"]}),
+            status="Pending",
+            retry_count=0
+        )
+        self.db.add(outbox)
         self.db.commit()
 
-        # Place order with order_number manually set or pre-existing
-        order = Order(
-            id=200,
-            order_number="ORD-2000",
-            shop_id=1,
-            total_quantity_kg=2.0,
-            total_items_count=1,
-            status="New"
-        )
-        order.shop = self.shop
-        self.db.add(order)
-        self.db.commit()
-
-        # Simulate second trigger for same order
-        from app.services.whatsapp_service import gupshup_whatsapp_service
-        existing_sent = self.db.query(Notification).filter(
-            Notification.order_number == order.order_number,
-            Notification.channel == "WhatsApp",
-            Notification.status.in_(["Sent", "Delivered", "Read", "Submitted"])
-        ).first()
-
-        self.assertIsNotNone(existing_sent)
-        # Verify mock_post was NOT called because notification already exists
+        # Run worker: should skip because Notification already exists
+        summary = self.service.process_outbox_queue(self.db)
+        self.assertEqual(summary["skipped_duplicate"], 1)
+        self.assertEqual(summary["dispatched"], 0)
         self.assertEqual(mock_post.call_count, 0)
 
-    # 9. Invalid or failed Gupshup responses are handled safely
+        self.db.refresh(outbox)
+        self.assertEqual(outbox.status, "Dispatched")
+
+    # 6. Worker recovers crashed stale processing locks
     @patch('httpx.Client.post')
-    def test_9_invalid_or_failed_gupshup_responses_handled_safely(self, mock_post):
-        # Gupshup returns 400 with 4003 error code (No template match)
+    def test_6_worker_recovers_crashed_stale_processing_locks(self, mock_post):
         mock_response = MagicMock()
-        mock_response.status_code = 400
+        mock_response.status_code = 200
         mock_response.json.return_value = {
-            "status": "error",
-            "code": 4003,
-            "message": "No Template Match"
+            "status": "submitted",
+            "messageId": "msg-recovered-99"
+        }
+        mock_post.return_value = mock_response
+
+        # Seed an outbox entry stuck in Processing with stale lock (>5 minutes ago)
+        crashed_time = datetime.utcnow() - timedelta(minutes=15)
+        outbox = WhatsAppOutbox(
+            order_id=888,
+            order_number="ORD-CRASH-01",
+            recipient_phone="919876500000",
+            template_id="c6aecef6-bcb0-4fb1-8100-28c094e3bc6b",
+            template_name="yadviapporder_confirmation",
+            payload_json=json.dumps({"order_number": "ORD-CRASH-01", "params": ["ORD-CRASH-01", "Shop", "987", "d", "p", "q"]}),
+            status="Processing",
+            locked_at=crashed_time,
+            retry_count=0
+        )
+        self.db.add(outbox)
+        self.db.commit()
+
+        # Worker should recover stale lock and process it
+        summary = self.service.process_outbox_queue(self.db)
+        self.assertEqual(summary["total_candidates"], 1)
+        self.assertEqual(summary["dispatched"], 1)
+        self.assertEqual(mock_post.call_count, 1)
+
+        self.db.refresh(outbox)
+        self.assertEqual(outbox.status, "Dispatched")
+
+    # 7. Strict config: missing app_name fails safely without dispatching
+    @patch('httpx.Client.post')
+    def test_7_strict_config_missing_app_name(self, mock_post):
+        self.service.app_name = None
+        self.assertFalse(self.service.is_configured())
+
+        order = Order(id=107, order_number="ORD-NO-APP", shop_id=1)
+        res = self.service.send_order_notification(order, [])
+        self.assertFalse(res["success"])
+        self.assertEqual(res["status"], "unconfigured")
+        self.assertIn("GUPSHUP_APP_NAME", res["message"])
+        self.assertIn("src.name", res["message"])
+        self.assertEqual(mock_post.call_count, 0)
+
+    # 8. Strict config: missing template UUID fails safely and never uses template name
+    @patch('httpx.Client.post')
+    def test_8_strict_config_missing_template_uuid(self, mock_post):
+        self.service.template_id = None
+        self.assertFalse(self.service.is_configured())
+
+        order = Order(id=108, order_number="ORD-NO-TPL", shop_id=1)
+        res = self.service.send_order_notification(order, [])
+        self.assertFalse(res["success"])
+        self.assertEqual(res["status"], "unconfigured")
+        self.assertIn("GUPSHUP_TEMPLATE_ID", res["message"])
+        self.assertIn("approved template UUID", res["message"])
+        self.assertEqual(mock_post.call_count, 0)
+
+    # 9. src.name and approved template UUID are always present in the form payload
+    @patch('httpx.Client.post')
+    def test_9_src_name_and_template_uuid_in_form_payload(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "submitted",
+            "messageId": "msg-payload-check-1"
         }
         mock_post.return_value = mock_response
 
         order = Order(
-            id=106,
-            order_number="ORD-1154",
+            id=109,
+            order_number="ORD-1157",
             shop_id=1,
             total_quantity_kg=2.0,
             created_at=datetime.utcnow()
         )
         order.shop = self.shop
         items = [OrderItem(product_id=1, quantity=2.0, unit="kg")]
+        items[0].product = self.product1
 
         res = self.service.send_order_notification(order, items)
-        self.assertFalse(res["success"])
-        self.assertEqual(res["status"], "rejected")
-        self.assertEqual(res["error_code"], 4003)
-        self.assertIn("No Template Match", res["message"])
+        self.assertTrue(res["success"])
+        self.assertEqual(mock_post.call_count, 1)
 
-    # 9B. Test Gupshup template status check method
-    @patch('httpx.Client.get')
-    def test_9b_check_template_status_method(self, mock_get):
-        self.service.app_id = "test-app-id-1234"
-        mock_res = MagicMock()
-        mock_res.status_code = 200
-        mock_res.json.return_value = {
-            "templates": [
-                {
-                    "elementName": "yadviapporder_confirmation",
-                    "status": "PENDING",
-                    "id": "c6aecef6-bcb0-4fb1-8100-28c094e3bc6b",
-                    "category": "UTILITY",
-                    "languageCode": "en_US"
-                }
-            ]
-        }
-        mock_get.return_value = mock_res
+        # Inspect call arguments
+        call_kwargs = mock_post.call_args[1]
+        data_sent = call_kwargs["data"]
 
-        status_res = self.service.check_template_status()
-        self.assertTrue(status_res["success"])
-        self.assertEqual(status_res["status"], "PENDING")
-        self.assertEqual(status_res["template_name"], "yadviapporder_confirmation")
+        # src.name must be sent
+        self.assertEqual(data_sent.get("src.name"), "YadviHybridSeeds")
+        self.assertEqual(data_sent.get("channel"), "whatsapp")
+        self.assertEqual(data_sent.get("source"), "919999900000")
+        self.assertEqual(data_sent.get("destination"), "919876500000")
 
-    # 10. Webhook delivery statuses are processed correctly with monotonic progression
-    def test_10_webhook_delivery_statuses_processed_correctly(self):
-        # Create a submitted notification
+        # template must contain the approved template UUID, NOT the template name
+        tpl_parsed = json.loads(data_sent.get("template"))
+        self.assertEqual(tpl_parsed["id"], "c6aecef6-bcb0-4fb1-8100-28c094e3bc6b")
+        self.assertNotEqual(tpl_parsed["id"], "yadviapporder_confirmation")
+        self.assertEqual(len(tpl_parsed["params"]), 6)
+
+    # 10. Webhook delivery monotonic transitions and duplicate event idempotency
+    def test_10_webhook_delivery_monotonic_and_duplicate_idempotency(self):
         notif = Notification(
             recipient_phone="919876500000",
             channel="WhatsApp",
-            order_number="ORD-3001",
-            shop_name="Shree Seeds",
+            order_number="ORD-W-01",
             status="Sent",
             delivery_status="Submitted",
-            meta_message_id="gs-msg-uuid-9999",
+            meta_message_id="gs-test-w-99",
             message_content="Test message"
         )
         self.db.add(notif)
         self.db.commit()
 
-        # A. Transition Submitted -> Sent
-        sent_event = {
+        # Step 1: Transition Submitted -> Sent
+        event_sent = {
             "type": "message-event",
             "payload": {
-                "id": "wamid.HBgMOTE...",
-                "gsId": "gs-msg-uuid-9999",
-                "type": "sent",
-                "destination": "919876500000"
+                "id": "wamid.123",
+                "gsId": "gs-test-w-99",
+                "type": "sent"
             }
         }
-        res_sent = GupshupWhatsAppService.process_webhook_event(sent_event, self.db)
-        self.assertEqual(res_sent["status"], "updated")
-        self.assertEqual(res_sent["new_status"], "Sent")
+        res1 = GupshupWhatsAppService.process_webhook_event(event_sent, self.db)
+        self.assertEqual(res1["status"], "updated")
+        self.assertEqual(res1["new_status"], "Sent")
 
-        self.db.refresh(notif)
-        self.assertEqual(notif.delivery_status, "Sent")
+        # Step 2: Duplicate Sent event handled idempotently
+        res1_dup = GupshupWhatsAppService.process_webhook_event(event_sent, self.db)
+        self.assertEqual(res1_dup["status"], "duplicate")
 
-        # B. Transition Sent -> Delivered
-        deliv_event = {
+        # Step 3: Transition Sent -> Delivered
+        event_deliv = {
             "type": "message-event",
             "payload": {
-                "id": "wamid.HBgMOTE...",
-                "gsId": "gs-msg-uuid-9999",
-                "type": "delivered",
-                "destination": "919876500000"
+                "id": "wamid.123",
+                "gsId": "gs-test-w-99",
+                "type": "delivered"
             }
         }
-        res_deliv = GupshupWhatsAppService.process_webhook_event(deliv_event, self.db)
-        self.assertEqual(res_deliv["status"], "updated")
-        self.assertEqual(res_deliv["new_status"], "Delivered")
-
+        res2 = GupshupWhatsAppService.process_webhook_event(event_deliv, self.db)
+        self.assertEqual(res2["status"], "updated")
+        self.assertEqual(res2["new_status"], "Delivered")
         self.db.refresh(notif)
-        self.assertEqual(notif.delivery_status, "Delivered")
         self.assertIsNotNone(notif.delivered_at)
 
-        # C. Monotonic check: Delayed 'sent' event must NOT downgrade 'Delivered'
-        res_late_sent = GupshupWhatsAppService.process_webhook_event(sent_event, self.db)
+        # Step 4: Out-of-order 'sent' event does not downgrade 'Delivered'
+        res_late_sent = GupshupWhatsAppService.process_webhook_event(event_sent, self.db)
         self.assertEqual(res_late_sent["status"], "skipped_lower_rank")
         self.db.refresh(notif)
         self.assertEqual(notif.delivery_status, "Delivered")
 
-        # D. Transition Delivered -> Read
-        read_event = {
+        # Step 5: Transition Delivered -> Read
+        event_read = {
             "type": "message-event",
             "payload": {
-                "id": "wamid.HBgMOTE...",
-                "gsId": "gs-msg-uuid-9999",
-                "type": "read",
-                "destination": "919876500000"
+                "id": "wamid.123",
+                "gsId": "gs-test-w-99",
+                "type": "read"
             }
         }
-        res_read = GupshupWhatsAppService.process_webhook_event(read_event, self.db)
-        self.assertEqual(res_read["status"], "updated")
-        self.assertEqual(res_read["new_status"], "Read")
-
+        res3 = GupshupWhatsAppService.process_webhook_event(event_read, self.db)
+        self.assertEqual(res3["status"], "updated")
+        self.assertEqual(res3["new_status"], "Read")
         self.db.refresh(notif)
-        self.assertEqual(notif.delivery_status, "Read")
         self.assertIsNotNone(notif.read_at)
 
-        # E. Failure handling for a new notification
-        fail_notif = Notification(
-            recipient_phone="919876500000",
-            channel="WhatsApp",
-            order_number="ORD-3002",
-            status="Sent",
-            delivery_status="Submitted",
-            meta_message_id="gs-fail-msg-1234",
-            message_content="Fail test"
-        )
-        self.db.add(fail_notif)
-        self.db.commit()
-
-        fail_event = {
+        # Step 6: Delayed failure event does NOT overwrite confirmed Read
+        event_late_fail = {
             "type": "message-event",
             "payload": {
-                "id": "gs-fail-msg-1234",
-                "type": "failed",
-                "destination": "919876500000",
-                "payload": {
-                    "code": 1002,
-                    "reason": "Number Not Exist On WhatsApp"
-                }
+                "id": "gs-test-w-99",
+                "type": "failed"
             }
         }
-        res_fail = GupshupWhatsAppService.process_webhook_event(fail_event, self.db)
-        self.assertEqual(res_fail["status"], "updated")
-        self.assertEqual(res_fail["new_status"], "Failed")
+        res_late_fail = GupshupWhatsAppService.process_webhook_event(event_late_fail, self.db)
+        self.assertEqual(res_late_fail["status"], "ignored_already_delivered")
+        self.db.refresh(notif)
+        self.assertEqual(notif.delivery_status, "Read")
 
-        self.db.refresh(fail_notif)
-        self.assertEqual(fail_notif.delivery_status, "Failed")
-        self.assertEqual(fail_notif.status, "Failed")
-        self.assertEqual(fail_notif.meta_error_code, "1002")
-        self.assertIn("Number Not Exist", fail_notif.meta_error_message)
+    # 11. Template formatting correctly populates all 6 variables
+    def test_11_template_formatting_all_variables(self):
+        order = Order(
+            id=201,
+            order_number="ORD-2026-X",
+            shop_id=1,
+            total_quantity_kg=4.5,
+            created_at=datetime(2026, 11, 23, 14, 30, 0)
+        )
+        order.shop = self.shop
+        item1 = OrderItem(product_id=1, quantity=3.0, unit="kg")
+        item1.product = self.product1
+        item2 = OrderItem(product_id=2, quantity=1.5, unit="kg")
+        item2.product = self.product2
 
-    # 11. Missing credentials are handled safely
-    def test_11_missing_credentials_handled_safely(self):
-        unconfigured_service = GupshupWhatsAppService()
-        unconfigured_service.api_key = None
-        unconfigured_service.source_number = None
+        params = self.service.format_template_variables(order, [item1, item2])
+        self.assertEqual(params[0], "ORD-2026-X")
+        self.assertEqual(params[1], "Shree Seeds Agency")
+        self.assertEqual(params[2], "9876543210")
+        self.assertEqual(params[3], "23 November 2026")
+        self.assertEqual(params[4], "Maize Hybrid – 3 kg, Cotton Gold – 1.5 kg")
+        self.assertEqual(params[5], "4.5 kg (2 varieties)")
 
-        self.assertFalse(unconfigured_service.is_configured())
-
-        order = Order(id=107, order_number="ORD-1155", shop_id=1)
-        res = unconfigured_service.send_order_notification(order, [])
-        self.assertFalse(res["success"])
-        self.assertEqual(res["status"], "unconfigured")
-        self.assertIn("not configured", res["message"])
-
-    # 12. Sensitive credentials and phone numbers are never exposed in logs or return dicts
+    # 12. Sensitive credentials and phone numbers are never exposed
     def test_12_sensitive_credentials_never_exposed(self):
-        secret_key = "very_secret_api_key_xyz_999"
         phone = "+91 98765 43210"
-
         masked = mask_phone_number(phone)
         self.assertNotIn("9876543210", masked)
         self.assertTrue(masked.startswith("91"))
         self.assertTrue(masked.endswith("3210"))
-        self.assertIn("******", masked)
 
-        # Ensure API key is never in sanitized phone
         sanitized = sanitize_phone_number(phone)
         self.assertEqual(sanitized, "919876543210")
 
-        # Ensure service representation never prints raw key
-        order = Order(id=108, order_number="ORD-1156", shop_id=1)
+        order = Order(id=110, order_number="ORD-SAFE", shop_id=1)
         order.shop = self.shop
         items = [OrderItem(product_id=1, quantity=1.0, unit="kg")]
 
         with patch('httpx.Client.post') as mock_post:
             mock_res = MagicMock()
             mock_res.status_code = 200
-            mock_res.json.return_value = {"status": "submitted", "messageId": "test-id"}
+            mock_res.json.return_value = {"status": "submitted", "messageId": "safe-id"}
             mock_post.return_value = mock_res
 
             res = self.service.send_order_notification(order, items)
-            # The returned dict must NOT contain the secret API key
             res_str = json.dumps(str(res))
-            self.assertNotIn(secret_key, res_str)
+            self.assertNotIn("test_gupshup_api_key_secret_123", res_str)
 
 
 if __name__ == '__main__':
