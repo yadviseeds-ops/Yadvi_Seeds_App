@@ -118,6 +118,7 @@ class Settings(BaseSettings):
     GUPSHUP_TEMPLATE_LANG: str = "en_US"
     GUPSHUP_BASE_URL: str = "https://api.gupshup.io"
     GUPSHUP_WEBHOOK_SECRET: str | None = None
+    GUPSHUP_DISPATCH_ENABLED: bool = False
 
     class Config:
         case_sensitive = True

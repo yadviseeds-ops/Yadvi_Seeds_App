@@ -424,6 +424,7 @@ def get_gupshup_config_status(
     """
     return {
         "configured": gupshup_whatsapp_service.is_configured(),
+        "dispatch_enabled": gupshup_whatsapp_service.dispatch_enabled,
         "has_api_key": bool(gupshup_whatsapp_service.api_key),
         "has_source_number": bool(gupshup_whatsapp_service.source_number),
         "source_number_masked": mask_phone_number(gupshup_whatsapp_service.source_number),

@@ -106,6 +106,7 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
         self.orig_app_id = settings.GUPSHUP_APP_ID
         self.orig_template_id = settings.GUPSHUP_TEMPLATE_ID
         self.orig_template_name = settings.GUPSHUP_TEMPLATE_NAME
+        self.orig_dispatch_enabled = settings.GUPSHUP_DISPATCH_ENABLED
 
         settings.GUPSHUP_API_KEY = "test_gupshup_api_key_secret_123"
         settings.GUPSHUP_SOURCE_NUMBER = "919999900000"
@@ -114,6 +115,7 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
         settings.GUPSHUP_APP_ID = "bfa14c34-fc9d-4f5b-bfce-73fc89434929"
         settings.GUPSHUP_TEMPLATE_ID = "c6aecef6-bcb0-4fb1-8100-28c094e3bc6b"
         settings.GUPSHUP_TEMPLATE_NAME = "yadviapporder_confirmation"
+        settings.GUPSHUP_DISPATCH_ENABLED = True
 
         self.service = GupshupWhatsAppService()
 
@@ -125,6 +127,7 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
         settings.GUPSHUP_APP_ID = self.orig_app_id
         settings.GUPSHUP_TEMPLATE_ID = self.orig_template_id
         settings.GUPSHUP_TEMPLATE_NAME = self.orig_template_name
+        settings.GUPSHUP_DISPATCH_ENABLED = self.orig_dispatch_enabled
 
         self.db.close()
         Base.metadata.drop_all(bind=self.engine)
@@ -841,6 +844,69 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
         self.db.refresh(failed_outbox)
         self.assertEqual(failed_outbox.status, "Dispatched")
         self.assertIsNone(failed_outbox.locked_at)
+
+    # 20. When dispatch is paused, outbox entries are preserved without consuming retries or failing
+    @patch('httpx.Client.post')
+    def test_20_dispatch_paused_preserves_outbox_without_retries(self, mock_post):
+        # Explicitly pause dispatch via feature flag
+        settings.GUPSHUP_DISPATCH_ENABLED = False
+
+        # Create an order: outbox entry is enqueued safely
+        payload = OrderCreateRequest(
+            items=[OrderItemIn(product_id=1, quantity=1.0, unit="kg")],
+            source="Shop Owner App"
+        )
+        order_out = create_order(payload=payload, db=self.db, current_user=self.dealer_user)
+        self.assertIsNotNone(order_out)
+
+        outbox = self.db.query(WhatsAppOutbox).filter(WhatsAppOutbox.order_number == order_out.order_number).first()
+        self.assertIsNotNone(outbox)
+        self.assertEqual(outbox.status, "Pending")
+        self.assertEqual(outbox.retry_count, 0)
+        self.assertIsNone(outbox.locked_at)
+
+        # Worker runs while dispatch is paused
+        summary = self.service.process_outbox_queue(db=self.db, max_batch=10)
+        self.assertTrue(summary.get("paused"))
+        self.assertEqual(summary.get("dispatched"), 0)
+        self.assertEqual(summary.get("failed"), 0)
+        self.assertEqual(summary.get("retried"), 0)
+
+        # HTTP post must NOT be called
+        self.assertEqual(mock_post.call_count, 0)
+
+        # Outbox entry must remain untouched in Pending state with 0 retries
+        self.db.refresh(outbox)
+        self.assertEqual(outbox.status, "Pending")
+        self.assertEqual(outbox.retry_count, 0)
+        self.assertIsNone(outbox.locked_at)
+
+    # 21. Direct dispatch calls return dispatch_paused when feature flag is disabled
+    @patch('httpx.Client.post')
+    def test_21_dispatch_paused_direct_calls(self, mock_post):
+        settings.GUPSHUP_DISPATCH_ENABLED = False
+
+        order = Order(id=999, order_number="ORD-PAUSED-DIRECT", shop_id=1)
+        order.shop = self.shop
+        items = [OrderItem(product_id=1, quantity=1.0, unit="kg")]
+
+        res_direct = self.service.send_order_notification(order, items)
+        self.assertFalse(res_direct["success"])
+        self.assertEqual(res_direct["status"], "dispatch_paused")
+
+        outbox = WhatsAppOutbox(
+            order_id=999,
+            order_number="ORD-PAUSED-DIRECT",
+            recipient_phone="919876500000",
+            template_id="c6aecef6-bcb0-4fb1-8100-28c094e3bc6b",
+            template_name="yadviapporder_confirmation",
+            payload_json=json.dumps({"order_number": "ORD-PAUSED-DIRECT", "params": []}),
+            status="Pending"
+        )
+        res_outbox = self.service.send_from_outbox(outbox)
+        self.assertFalse(res_outbox["success"])
+        self.assertEqual(res_outbox["status"], "dispatch_paused")
+        self.assertEqual(mock_post.call_count, 0)
 
 
 if __name__ == '__main__':

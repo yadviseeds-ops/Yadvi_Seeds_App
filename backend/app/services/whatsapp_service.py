@@ -80,6 +80,7 @@ class GupshupWhatsAppService:
         template_name: Optional[str] = None,
         template_lang: Optional[str] = None,
         base_url: Optional[str] = None,
+        dispatch_enabled: Optional[bool] = None,
     ):
         self._base_url = base_url if base_url is not None else _UNSET
         self._api_key = api_key if api_key is not None else _UNSET
@@ -90,7 +91,21 @@ class GupshupWhatsAppService:
         self._template_id = template_id if template_id is not None else _UNSET
         self._template_name = template_name if template_name is not None else _UNSET
         self._template_lang = template_lang if template_lang is not None else _UNSET
+        self._dispatch_enabled = dispatch_enabled if dispatch_enabled is not None else _UNSET
         self.timeout = 15.0  # seconds
+
+    @property
+    def dispatch_enabled(self) -> bool:
+        if self._dispatch_enabled is not _UNSET and self._dispatch_enabled is not None:
+            return bool(self._dispatch_enabled)
+        val = getattr(settings, "GUPSHUP_DISPATCH_ENABLED", False)
+        if isinstance(val, str):
+            return val.strip().lower() in ("true", "1", "yes", "enabled")
+        return bool(val)
+
+    @dispatch_enabled.setter
+    def dispatch_enabled(self, val: Optional[bool]):
+        self._dispatch_enabled = val
 
     @property
     def base_url(self) -> str:
@@ -368,6 +383,18 @@ class GupshupWhatsAppService:
 
         Never crashes on failure; returns structured result.
         """
+        if not self.dispatch_enabled:
+            msg = "Gupshup WhatsApp dispatch is paused (GUPSHUP_DISPATCH_ENABLED=False)."
+            logger.info(msg)
+            return {
+                "success": False,
+                "status": "dispatch_paused",
+                "message": msg,
+                "message_id": None,
+                "http_status": None,
+                "recipient_masked": mask_phone_number(self.admin_recipient),
+            }
+
         if not self.is_configured():
             if not self.api_key or not self.source_number or not self.admin_recipient:
                 msg = "Gupshup WhatsApp integration is not configured. Missing required credentials or phone numbers."
@@ -700,6 +727,18 @@ class GupshupWhatsAppService:
         Sends a WhatsApp notification to Admin using parameters stored in a WhatsAppOutbox record.
         Never raises exceptions; returns structured result dict.
         """
+        if not self.dispatch_enabled:
+            msg = "Gupshup WhatsApp dispatch is paused (GUPSHUP_DISPATCH_ENABLED=False)."
+            logger.info(f"Outbox #{getattr(outbox, 'id', 'N/A')}: {msg}")
+            return {
+                "success": False,
+                "status": "dispatch_paused",
+                "message": msg,
+                "message_id": None,
+                "http_status": None,
+                "recipient_masked": mask_phone_number(self.admin_recipient),
+            }
+
         if not self.is_configured():
             if not self.api_key or not self.source_number or not self.admin_recipient:
                 msg = "Gupshup WhatsApp integration is not configured. Missing required credentials or phone numbers."
@@ -985,6 +1024,18 @@ class GupshupWhatsAppService:
           terminal 'Failed'.
         """
         from app.models.all_models import WhatsAppOutbox, Notification
+
+        # Safe feature flag check: if WhatsApp dispatch is paused, do not claim records
+        if not self.dispatch_enabled:
+            logger.info("Gupshup WhatsApp outbox processing skipped: dispatch is paused (GUPSHUP_DISPATCH_ENABLED=False).")
+            return {
+                "total_candidates": 0,
+                "dispatched": 0,
+                "failed": 0,
+                "retried": 0,
+                "skipped_duplicate": 0,
+                "paused": True,
+            }
 
         # Phase 1: Atomically claim a batch of records in a short transaction
         claimed_ids = self._claim_pending_records(db=db, max_batch=max_batch)
