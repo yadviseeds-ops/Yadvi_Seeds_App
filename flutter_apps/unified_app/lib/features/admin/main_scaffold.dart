@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/exit_dialog.dart';
 import '../../providers/admin_provider.dart';
@@ -79,9 +80,14 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Confirm Logout'),
-        content: const Text('Are you sure you want to log out of the Administrator Console?'),
+        content: const Text(
+          'Are you sure you want to log out of the Administrator Console?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
@@ -90,7 +96,9 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
               await auth.logout();
               if (mounted) {
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const UnifiedRoleSelectionScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const UnifiedRoleSelectionScreen(),
+                  ),
                   (route) => false,
                 );
               }
@@ -140,7 +148,9 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
             children: [
               IconButton(
                 icon: const Icon(Icons.arrow_back),
-                tooltip: _tabHistory.length > 1 ? 'Back to Previous Tab' : 'Exit Application',
+                tooltip: _tabHistory.length > 1
+                    ? 'Back to Previous Tab'
+                    : 'Exit Application',
                 onPressed: _handleBack,
               ),
               Builder(
@@ -153,222 +163,313 @@ class _AdminMainScaffoldState extends State<AdminMainScaffold> {
             ],
           ),
           title: Text(titles[_currentIndex]),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh All Data',
-            onPressed: () => adminProvider.refreshAll(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Admin Settings & Profile',
-            onPressed: _navigateToProfile,
-          ),
-        ],
-      ),
-      drawer: Drawer(
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: const BoxDecoration(
-                color: AppTheme.primaryGreen,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    auth.currentUser ?? 'Administrator',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Role: System Administrator',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh All Data',
+              onPressed: () => adminProvider.refreshAll(),
             ),
-            ListTile(
-              leading: const Icon(Icons.dashboard_outlined, color: AppTheme.primaryGreen),
-              title: const Text('Dashboard'),
-              selected: _currentIndex == 0,
-              onTap: () {
-                Navigator.pop(context);
-                _onNavigateTab(0);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.shopping_bag_outlined, color: AppTheme.primaryGreen),
-              title: const Text('Orders Management'),
-              selected: _currentIndex == 1,
-              onTap: () {
-                Navigator.pop(context);
-                _onNavigateTab(1);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.inventory_2_outlined, color: AppTheme.primaryGreen),
-              title: const Text('Products & Catalog'),
-              selected: _currentIndex == 2,
-              onTap: () {
-                Navigator.pop(context);
-                _onNavigateTab(2);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.people_alt_outlined, color: AppTheme.primaryGreen),
-              title: const Text('Field Executives'),
-              selected: _currentIndex == 3,
-              onTap: () {
-                Navigator.pop(context);
-                _onNavigateTab(3);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.storefront_outlined, color: AppTheme.primaryGreen),
-              title: const Text('Dealer Network'),
-              selected: _currentIndex == 4,
-              onTap: () {
-                Navigator.pop(context);
-                _onNavigateTab(4);
-              },
-            ),
-            const Divider(),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Text(
-                'OPERATIONS & AUDITING',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.textMuted),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.how_to_reg_outlined, color: Colors.blue),
-              title: const Text('Daily Attendance'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.place_outlined, color: Colors.orange),
-              title: const Text('Field Visits Log'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const VisitsScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.local_shipping_outlined, color: Colors.purple),
-              title: const Text('Logistics & Shipments'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const ShipmentsScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.receipt_long_outlined, color: Colors.indigo),
-              title: const Text('Invoices & Receipts'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminInvoicesScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.assignment_outlined, color: Colors.teal),
-              title: const Text('Daily EOD Reports'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const EodReportsScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.gps_fixed, color: Colors.red),
-              title: const Text('Live Force Tracking'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const LiveTrackingScreen()));
-              },
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Admin Settings & Profile',
+              onPressed: _navigateToProfile,
             ),
           ],
-              ),
-            ),
-            const Divider(height: 1),
-            SafeArea(
-              top: false,
-              left: false,
-              right: false,
-              bottom: true,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 6.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+        ),
+        drawer: Drawer(
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
                   children: [
+                    DrawerHeader(
+                      decoration: const BoxDecoration(
+                        color: AppTheme.primaryGreen,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            auth.currentUser ?? 'Administrator',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Role: System Administrator',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     ListTile(
-                      leading: const Icon(Icons.settings_outlined, color: AppTheme.primaryGreen),
-                      title: const Text('Profile & Settings'),
+                      leading: const Icon(
+                        Icons.dashboard_outlined,
+                        color: AppTheme.primaryGreen,
+                      ),
+                      title: const Text('Dashboard'),
+                      selected: _currentIndex == 0,
                       onTap: () {
                         Navigator.pop(context);
-                        _navigateToProfile();
+                        _onNavigateTab(0);
                       },
                     ),
                     ListTile(
-                      leading: const Icon(Icons.logout, color: Colors.redAccent),
-                      title: const Text('Logout Session', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
+                      leading: const Icon(
+                        Icons.shopping_bag_outlined,
+                        color: AppTheme.primaryGreen,
+                      ),
+                      title: const Text('Orders Management'),
+                      selected: _currentIndex == 1,
                       onTap: () {
                         Navigator.pop(context);
-                        _confirmLogout();
+                        _onNavigateTab(1);
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.inventory_2_outlined,
+                        color: AppTheme.primaryGreen,
+                      ),
+                      title: const Text('Products & Catalog'),
+                      selected: _currentIndex == 2,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _onNavigateTab(2);
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.people_alt_outlined,
+                        color: AppTheme.primaryGreen,
+                      ),
+                      title: const Text('Field Executives'),
+                      selected: _currentIndex == 3,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _onNavigateTab(3);
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.storefront_outlined,
+                        color: AppTheme.primaryGreen,
+                      ),
+                      title: const Text('Dealer Network'),
+                      selected: _currentIndex == 4,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _onNavigateTab(4);
+                      },
+                    ),
+                    const Divider(),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      child: Text(
+                        'OPERATIONS & AUDITING',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textMuted,
+                        ),
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.how_to_reg_outlined,
+                        color: Colors.blue,
+                      ),
+                      title: const Text('Daily Attendance'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AttendanceScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.place_outlined,
+                        color: Colors.orange,
+                      ),
+                      title: const Text('Field Visits Log'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const VisitsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.local_shipping_outlined,
+                        color: Colors.purple,
+                      ),
+                      title: const Text('Logistics & Shipments'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ShipmentsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.receipt_long_outlined,
+                        color: Colors.indigo,
+                      ),
+                      title: const Text('Invoices & Receipts'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AdminInvoicesScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.assignment_outlined,
+                        color: Colors.teal,
+                      ),
+                      title: const Text('Daily EOD Reports'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const EodReportsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.gps_fixed, color: Colors.red),
+                      title: const Text('Live Force Tracking'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const LiveTrackingScreen(),
+                          ),
+                        );
                       },
                     ),
                   ],
                 ),
               ),
+              const Divider(height: 1),
+              SafeArea(
+                top: false,
+                left: false,
+                right: false,
+                bottom: true,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 6.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        leading: const Icon(
+                          Icons.settings_outlined,
+                          color: AppTheme.primaryGreen,
+                        ),
+                        title: const Text('Profile & Settings'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _navigateToProfile();
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(
+                          Icons.logout,
+                          color: Colors.redAccent,
+                        ),
+                        title: const Text(
+                          'Logout Session',
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _confirmLogout();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: screens[_currentIndex],
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: _onNavigateTab,
+          indicatorColor: AppTheme.primaryGreen.withValues(alpha: 0.18),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined),
+              selectedIcon: Icon(Icons.dashboard, color: AppTheme.primaryGreen),
+              label: 'Dashboard',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.shopping_bag_outlined),
+              selectedIcon: Icon(
+                Icons.shopping_bag,
+                color: AppTheme.primaryGreen,
+              ),
+              label: 'Orders',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.inventory_2_outlined),
+              selectedIcon: Icon(
+                Icons.inventory_2,
+                color: AppTheme.primaryGreen,
+              ),
+              label: 'Products',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.people_outline),
+              selectedIcon: Icon(Icons.people, color: AppTheme.primaryGreen),
+              label: 'Team',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.storefront_outlined),
+              selectedIcon: Icon(
+                Icons.storefront,
+                color: AppTheme.primaryGreen,
+              ),
+              label: 'Dealers',
             ),
           ],
         ),
       ),
-      body: screens[_currentIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: _onNavigateTab,
-        indicatorColor: AppTheme.primaryGreen.withValues(alpha: 0.18),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard, color: AppTheme.primaryGreen),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.shopping_bag_outlined),
-            selectedIcon: Icon(Icons.shopping_bag, color: AppTheme.primaryGreen),
-            label: 'Orders',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2, color: AppTheme.primaryGreen),
-            label: 'Products',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people, color: AppTheme.primaryGreen),
-            label: 'Team',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.storefront_outlined),
-            selectedIcon: Icon(Icons.storefront, color: AppTheme.primaryGreen),
-            label: 'Shop Owners',
-          ),
-        ],
-      ),
-    ),
     );
   }
 }

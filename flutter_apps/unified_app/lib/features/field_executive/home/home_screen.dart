@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../services/fe_service.dart';
 import '../../../models/fe_profile.dart';
 import '../../../models/visit_model.dart';
@@ -133,13 +134,17 @@ class HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   child: SafeArea(
+                    bottom: false,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
                       child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _isLoading ? 'Loading...' : 'Good Day, ${_profile?.fullName.split(' ').first ?? 'Executive'}',
+                            _isLoading
+                                ? 'Loading...'
+                                : 'Good Day, ${_profile?.fullName.split(' ').first ?? 'Executive'}',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 17,
@@ -149,7 +154,10 @@ class HomeScreenState extends State<HomeScreen> {
                           const SizedBox(height: 2),
                           Text(
                             _profile?.designation ?? '',
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12),
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.75),
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ),
@@ -159,7 +167,9 @@ class HomeScreenState extends State<HomeScreen> {
               ),
             ),
             if (_isLoading)
-              const SliverFillRemaining(child: Center(child: CircularProgressIndicator()))
+              const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator()),
+              )
             else if (_error != null)
               SliverFillRemaining(
                 child: Center(
@@ -168,11 +178,22 @@ class HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.wifi_off, size: 56, color: Colors.grey),
+                        const Icon(
+                          Icons.wifi_off,
+                          size: 56,
+                          color: Colors.grey,
+                        ),
                         const SizedBox(height: 16),
-                        Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+                        Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
                         const SizedBox(height: 16),
-                        ElevatedButton(onPressed: loadData, child: const Text('Retry')),
+                        ElevatedButton(
+                          onPressed: loadData,
+                          child: const Text('Retry'),
+                        ),
                       ],
                     ),
                   ),
@@ -188,17 +209,37 @@ class HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        _buildStatCard('Total Visits', '${todayVisits.length}', Icons.store, const Color(0xFF0D4A32)),
+                        _buildStatCard(
+                          'Total Visits',
+                          '${todayVisits.length}',
+                          Icons.store,
+                          const Color(0xFF0D4A32),
+                        ),
                         const SizedBox(width: 10),
-                        _buildStatCard('Completed', '$completed', Icons.check_circle, Colors.green[700]!),
+                        _buildStatCard(
+                          'Completed',
+                          '$completed',
+                          Icons.check_circle,
+                          Colors.green[700]!,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        _buildStatCard('Pending', '$pending', Icons.access_time, Colors.orange[700]!),
+                        _buildStatCard(
+                          'Pending',
+                          '$pending',
+                          Icons.access_time,
+                          Colors.orange[700]!,
+                        ),
                         const SizedBox(width: 10),
-                        _buildStatCard('Assigned Orders', '${_orders.length}', Icons.shopping_bag, Colors.teal[700]!),
+                        _buildStatCard(
+                          'Assigned Orders',
+                          '${_orders.length}',
+                          Icons.shopping_bag,
+                          Colors.teal[700]!,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -231,23 +272,44 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSectionTitle(String title) {
-    return Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0D4A32)));
+    return Text(
+      title,
+      style: const TextStyle(
+        fontWeight: FontWeight.bold,
+        fontSize: 16,
+        color: Color(0xFF0D4A32),
+      ),
+    );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, 3))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Icon(icon, color: color, size: 22),
             ),
             const SizedBox(width: 10),
@@ -258,7 +320,11 @@ class HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     value,
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: color),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: color,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -289,7 +355,7 @@ class HomeScreenState extends State<HomeScreen> {
             color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 3),
-          )
+          ),
         ],
       ),
       child: Row(
@@ -308,7 +374,10 @@ class HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Territory', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                const Text(
+                  'Territory',
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   territory,
@@ -342,7 +411,13 @@ class HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 6, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -352,8 +427,17 @@ class HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(v.shopName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                Text(v.shopLocation, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                Text(
+                  v.shopName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  v.shopLocation,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
               ],
             ),
           ),
@@ -363,7 +447,14 @@ class HomeScreenState extends State<HomeScreen> {
               color: statusColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Text(v.status, style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
+            child: Text(
+              v.status,
+              style: TextStyle(
+                color: statusColor,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -377,7 +468,13 @@ class HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 6, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -387,12 +484,28 @@ class HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(o.orderNumber, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'monospace')),
-                Text(o.shopName, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                Text(
+                  o.orderNumber,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+                Text(
+                  o.shopName,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
               ],
             ),
           ),
-          Text('${o.totalQuantityKg.toStringAsFixed(o.totalQuantityKg.truncateToDouble() == o.totalQuantityKg ? 0 : 2)} kg', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D4A32))),
+          Text(
+            '${o.totalQuantityKg.toStringAsFixed(o.totalQuantityKg.truncateToDouble() == o.totalQuantityKg ? 0 : 2)} kg',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF0D4A32),
+            ),
+          ),
         ],
       ),
     );
@@ -406,7 +519,13 @@ class HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Center(child: Text(msg, style: const TextStyle(color: Colors.grey), textAlign: TextAlign.center)),
+      child: Center(
+        child: Text(
+          msg,
+          style: const TextStyle(color: Colors.grey),
+          textAlign: TextAlign.center,
+        ),
+      ),
     );
   }
 }
