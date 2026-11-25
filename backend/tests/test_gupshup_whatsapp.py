@@ -908,6 +908,19 @@ class TestGupshupWhatsAppIntegration(unittest.TestCase):
         self.assertEqual(res_outbox["status"], "dispatch_paused")
         self.assertEqual(mock_post.call_count, 0)
 
+    # 22. Configuration: distinct sender and admin recipient numbers
+    def test_22_admin_recipient_and_sender_configuration(self):
+        service = GupshupWhatsAppService(
+            source_number="918262028208",
+            admin_recipient="919850082563",
+        )
+        self.assertEqual(service.source_number, "918262028208")
+        self.assertEqual(service.admin_recipient, "919850082563")
+        # Ensure sender and recipient are not identical (Meta Cloud API restriction)
+        self.assertNotEqual(service.source_number, service.admin_recipient)
+        self.assertEqual(mask_phone_number(service.source_number), "91******8208")
+        self.assertEqual(mask_phone_number(service.admin_recipient), "91******2563")
+
 
 if __name__ == '__main__':
     unittest.main()

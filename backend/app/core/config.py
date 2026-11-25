@@ -109,11 +109,11 @@ class Settings(BaseSettings):
 
     # Gupshup Enterprise WhatsApp Business API
     GUPSHUP_API_KEY: str | None = None
-    GUPSHUP_APP_NAME: str | None = None
+    GUPSHUP_APP_NAME: str | None = "YadviHybridSeedsApp"
     GUPSHUP_APP_ID: str | None = None
-    GUPSHUP_SOURCE_NUMBER: str | None = None       # Registered WhatsApp Business Sender (E.164, e.g. 91...)
-    GUPSHUP_ADMIN_RECIPIENT: str | None = None     # Designated Admin WhatsApp Recipient (E.164, e.g. 91...)
-    GUPSHUP_TEMPLATE_ID: str | None = None         # Unique Gupshup Template UUID
+    GUPSHUP_SOURCE_NUMBER: str | None = "918262028208"       # Registered WhatsApp Business Sender (E.164, e.g. 91...)
+    GUPSHUP_ADMIN_RECIPIENT: str | None = "919850082563"     # Designated Admin WhatsApp Recipient (E.164, e.g. 91...)
+    GUPSHUP_TEMPLATE_ID: str | None = "bf5a88f6-c297-49ba-912b-7589062c50fc"         # Unique Gupshup Template UUID
     GUPSHUP_TEMPLATE_NAME: str = "yadviapporder_confirmation"
     GUPSHUP_TEMPLATE_LANG: str = "en_US"
     GUPSHUP_BASE_URL: str = "https://api.gupshup.io"
